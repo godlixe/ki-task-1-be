@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS keys (
+    id SERIAL PRIMARY KEY,
+    key BYTEA
+)
