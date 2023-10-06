@@ -1,0 +1,60 @@
+version: '3'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: app
+    restart: unless-stopped
+    ports:
+      - 8080:8080
+    depends_on:
+      db_main:
+        condition: service_healthy
+      db_key:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./:/usr/src/app
+    networks:
+      - system
+  db_main:
+    container_name: db_main
+    image: postgres:16.0-alpine
+    restart: unless-stopped
+    ports:
+      - 5433:5432
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASS}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-d", "main"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+    networks:
+      - system
+  db_key:
+    container_name: db_key
+    image: postgres:16.0-alpine
+    restart: unless-stopped
+    ports:
+      - 5434:5432
+    environment:
+      - POSTGRES_DB=${GUARD_DB_NAME}
+      - POSTGRES_USER=${GUARD_DB_USER}
+      - POSTGRES_PASSWORD=${GUARD_DB_PASS}
+    networks:
+      - system
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-d", "key"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+networks:
+  system:
+    driver: bridge
