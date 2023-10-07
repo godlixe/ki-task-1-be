@@ -4,8 +4,11 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/des"
 	"crypto/rand"
+	"crypto/rc4"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 )
@@ -15,12 +18,19 @@ type Repository interface {
 	StoreKey(ctx context.Context, table string, key Key) (Key, error)
 }
 
+// Guard is a cipher tool to encrypt, decrypt, and store keys
+// depending on the mode. Available modes are :
+//
+// - AES : 1
+// - RC4 : 2
+// - DES : 3
 type Guard struct {
 	Mode        int
 	MetadataKey []byte
 	repository  Repository
 }
 
+// NewGuard creates a new guard with assigned fields.
 func NewGuard(mode int, metadataKey []byte, repository Repository) *Guard {
 	return &Guard{
 		Mode:        mode,
@@ -60,6 +70,7 @@ func (g *Guard) StoreKey(ctx context.Context, table string, key Key) ([]byte, er
 	return metadata, nil
 }
 
+// GenerateMetadata generates a encrypted reference of the key.
 func (g *Guard) GenerateMetadata(key Key) ([]byte, error) {
 	keyRef := make([]byte, 8)
 
@@ -73,6 +84,8 @@ func (g *Guard) GenerateMetadata(key Key) ([]byte, error) {
 	return metadata, nil
 }
 
+// GenerateKey generates a random key of length 32 bytes, or
+// 8 bytes (for DES mode).
 func (g *Guard) GenerateKey() ([]byte, error) {
 	key := make([]byte, 32)
 
@@ -81,49 +94,102 @@ func (g *Guard) GenerateKey() ([]byte, error) {
 		return nil, err
 	}
 
+	// Handle DES mode which requires 8-byte key
+	if g.Mode == 3 {
+		key = key[:8]
+	}
+
 	return key, nil
 }
 
-// Decrypt decrypts a data depending on the guard mode
+// Decrypt decrypts a data depending on the guard mode.
 func (g *Guard) Decrypt(key []byte, data []byte) ([]byte, error) {
-	c, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
+	switch g.Mode {
+	// AES Mode
+	case 1:
+		c, err := aes.NewCipher(key)
+		if err != nil {
+			return nil, err
+		}
+
+		gcm, err := cipher.NewGCM(c)
+		if err != nil {
+			return nil, err
+		}
+
+		nonceSize := gcm.NonceSize()
+
+		nonce, data := data[:nonceSize], data[nonceSize:]
+		res, err := gcm.Open(nil, nonce, data, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		return res, nil
+	// RC4 Mode
+	case 2:
+		c, err := rc4.NewCipher(key)
+		if err != nil {
+			return nil, err
+		}
+
+		res := make([]byte, len(data))
+		c.XORKeyStream(res, data)
+		return res, nil
+	// DES Mode
+	case 3:
+		c, err := des.NewCipher(key)
+		if err != nil {
+			return nil, err
+		}
+		res := make([]byte, len(data))
+		c.Decrypt(res, data)
+		return res, nil
 	}
 
-	gcm, err := cipher.NewGCM(c)
-	if err != nil {
-		return nil, err
-	}
-
-	nonceSize := gcm.NonceSize()
-
-	nonce, data := data[:nonceSize], data[nonceSize:]
-	res, err := gcm.Open(nil, nonce, data, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return res, nil
+	return nil, errors.New("invalid guard mode")
 }
 
+// Encrypt encrypts a data depending on the guard mode.
 func (g *Guard) Encrypt(key []byte, data []byte) ([]byte, error) {
-	c, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
+	switch g.Mode {
+	case 1:
+		c, err := aes.NewCipher(key)
+		if err != nil {
+			return nil, err
+		}
+
+		gcm, err := cipher.NewGCM(c)
+		if err != nil {
+			return nil, err
+		}
+
+		nonce := make([]byte, gcm.NonceSize())
+
+		if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+			fmt.Println(err)
+			return nil, err
+		}
+
+		return gcm.Seal(nonce, nonce, data, nil), nil
+	case 2:
+		c, err := rc4.NewCipher(key)
+		if err != nil {
+			return nil, err
+		}
+
+		res := make([]byte, len(data))
+		c.XORKeyStream(res, data)
+		return res, nil
+	case 3:
+		c, err := des.NewCipher(key)
+		if err != nil {
+			return nil, err
+		}
+		res := make([]byte, len(data))
+		c.Encrypt(res, data)
+		return res, nil
 	}
 
-	gcm, err := cipher.NewGCM(c)
-	if err != nil {
-		return nil, err
-	}
-
-	nonce := make([]byte, gcm.NonceSize())
-
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		fmt.Println(err)
-		return nil, err
-	}
-
-	return gcm.Seal(nonce, nonce, data, nil), nil
+	return nil, errors.New("invalid guard mode")
 }

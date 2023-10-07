@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
@@ -36,7 +37,12 @@ func main() {
 	fileRepository := file.NewFileRepository(db)
 	guardRepository := guard.NewGuardRepository(db)
 
-	guard := guard.NewGuard(1, []byte("12345678912345678912345678900000"), guardRepository)
+	guardMode, _ := strconv.Atoi(os.Getenv("GUARD_MODE"))
+	guard := guard.NewGuard(
+		guardMode,
+		[]byte(os.Getenv("GUARD_KEY")),
+		guardRepository,
+	)
 
 	fileSystem := file.NewFileSystem()
 
