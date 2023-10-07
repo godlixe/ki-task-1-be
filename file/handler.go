@@ -2,6 +2,7 @@ package file
 
 import (
 	"context"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"strconv"
@@ -54,7 +55,7 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) GetFile(w http.ResponseWriter, r *http.Request) {
 
-	qID := strings.TrimPrefix(r.URL.Path, "/get/")
+	qID := strings.TrimPrefix(r.URL.Path, "/file/")
 
 	id, err := strconv.ParseUint(qID, 10, 64)
 	if err != nil {
@@ -68,5 +69,6 @@ func (h *Handler) GetFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
+	fmt.Println(res)
 	w.Write(res)
 }

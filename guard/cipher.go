@@ -1,6 +1,7 @@
 package guard
 
 import (
+	"bytes"
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
@@ -46,11 +47,12 @@ func (g *Guard) GetKey(ctx context.Context, table string, metadata []byte) (Key,
 	if err != nil {
 		return Key{}, err
 	}
-
+	fmt.Println(string(keyRef), len(keyRef))
 	key, err := g.repository.GetKey(ctx, table, binary.BigEndian.Uint64(keyRef))
 	if err != nil {
 		return Key{}, err
 	}
+	fmt.Println((key.PlainKey))
 
 	return key, nil
 }
@@ -97,9 +99,24 @@ func (g *Guard) GenerateKey() ([]byte, error) {
 	// Handle DES mode which requires 8-byte key
 	if g.Mode == 3 {
 		key = key[:8]
+		fmt.Println(key, len(key))
 	}
 
 	return key, nil
+}
+
+// Pad pads the data based on PKCS7 standards.
+func (g *Guard) Pad(data []byte, blockSize int) []byte {
+	padder := blockSize - len(data)%blockSize
+	padding := bytes.Repeat([]byte{byte(padder)}, padder)
+	return append(data, padding...)
+}
+
+// Unpad unpads the data based on PKCS7 standards.
+func (g *Guard) Unpad(data []byte, blockSize int) []byte {
+	length := len(data)
+	unpadder := int(data[length-1])
+	return data[:(length - unpadder)]
 }
 
 // Decrypt decrypts a data depending on the guard mode.
@@ -142,8 +159,16 @@ func (g *Guard) Decrypt(key []byte, data []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		res := make([]byte, len(data))
-		c.Decrypt(res, data)
+		res := make([]byte, 0)
+		for len(data) > 0 {
+			tmpRes := make([]byte, 8)
+			c.Decrypt(tmpRes, data[:c.BlockSize()])
+			data = data[c.BlockSize():]
+			res = append(res, tmpRes...)
+		}
+
+		res = g.Unpad(res, c.BlockSize())
+
 		return res, nil
 	}
 
@@ -186,8 +211,17 @@ func (g *Guard) Encrypt(key []byte, data []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		res := make([]byte, len(data))
-		c.Encrypt(res, data)
+
+		data = g.Pad(data, c.BlockSize())
+
+		res := make([]byte, 0)
+		for len(data) > 0 {
+			tmpRes := make([]byte, 8)
+			c.Encrypt(tmpRes, data[:c.BlockSize()])
+			data = data[c.BlockSize():]
+			res = append(res, tmpRes...)
+		}
+
 		return res, nil
 	}
 
