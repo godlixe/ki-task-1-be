@@ -49,15 +49,15 @@ func main() {
 	fileService := file.NewFileService(fileSystem, fileRepository, *guard)
 	fileHandler := file.NewFileHandler(fileService)
 
-	http.HandleFunc("/file/", fileHandler.GetFile)
-	http.HandleFunc("/file", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/file/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
-		case "POST":
-			fileHandler.UploadFile(w, r)
+		case "GET":
+			fileHandler.GetFile(w, r)
 		case "DELETE":
-
+			fileHandler.DeleteFile(w, r)
 		}
 	})
+	http.HandleFunc("/file", fileHandler.UploadFile)
 
 	err = http.ListenAndServe(":8080", nil)
 	if err != nil {

@@ -2,7 +2,6 @@ package file
 
 import (
 	"context"
-	"fmt"
 	"mime/multipart"
 	"net/http"
 	"strconv"
@@ -17,6 +16,7 @@ type FileService interface {
 		header multipart.FileHeader,
 		file multipart.File,
 	) ([]byte, error)
+	deleteFile(ctx context.Context, fileID uint64) error
 }
 
 type Handler struct {
@@ -69,6 +69,24 @@ func (h *Handler) GetFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	fmt.Println(res)
 	w.Write(res)
+}
+
+func (h *Handler) DeleteFile(w http.ResponseWriter, r *http.Request) {
+
+	qID := strings.TrimPrefix(r.URL.Path, "/file/")
+
+	id, err := strconv.ParseUint(qID, 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	err = h.fileService.deleteFile(context.TODO(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("delete success"))
 }
