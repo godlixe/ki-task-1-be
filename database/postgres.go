@@ -46,7 +46,7 @@ func NewPostgresClient(
 	var err error
 	for pg.connAttempts > 0 {
 		dbpool, err = pgxpool.New(ctx, fmt.Sprintf(
-			"postgres://%v:%v@%v:%v/%v?sslmode=verify-ca",
+			"postgres://%v:%v@%v:%v/%v",
 			creds.User,
 			creds.Password,
 			creds.Host,
