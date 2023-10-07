@@ -77,3 +77,21 @@ func (fr *fileRepository) Get(ctx context.Context, id uint64) (File, error) {
 	return file, nil
 
 }
+
+func (fr *fileRepository) Delete(ctx context.Context, id uint64) error {
+	var err error
+
+	stmt := `
+	DELETE  
+	 FROM files 
+	 WHERE id = $1
+	 `
+
+	_, err = fr.db.GetConn().Exec(ctx, stmt, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}

@@ -28,6 +28,7 @@ type FileSystem interface {
 type FileRepository interface {
 	Create(ctx context.Context, file File) error
 	Get(ctx context.Context, id uint64) (File, error)
+	Delete(ctx context.Context, id uint64) error
 }
 
 type fileService struct {
@@ -129,4 +130,13 @@ func (fs *fileService) storeFile(
 	}
 
 	return res, nil
+}
+
+func (fs *fileService) deleteFile(ctx context.Context, id uint64) error {
+	err := fs.fileRepository.Delete(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
