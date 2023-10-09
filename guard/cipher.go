@@ -47,12 +47,11 @@ func (g *Guard) GetKey(ctx context.Context, table string, metadata []byte) (Key,
 	if err != nil {
 		return Key{}, err
 	}
-	fmt.Println(string(keyRef), len(keyRef))
+
 	key, err := g.repository.GetKey(ctx, table, binary.BigEndian.Uint64(keyRef))
 	if err != nil {
 		return Key{}, err
 	}
-	fmt.Println((key.PlainKey))
 
 	return key, nil
 }
@@ -99,7 +98,6 @@ func (g *Guard) GenerateKey() ([]byte, error) {
 	// Handle DES mode which requires 8-byte key
 	if g.Mode == 3 {
 		key = key[:8]
-		fmt.Println(key, len(key))
 	}
 
 	return key, nil

@@ -4,6 +4,7 @@ import (
 	"encryption/database"
 	"encryption/file"
 	"encryption/guard"
+	"encryption/request"
 	"fmt"
 	"net/http"
 	"os"
@@ -49,7 +50,9 @@ func main() {
 	fileService := file.NewFileService(fileSystem, fileRepository, *guard)
 	fileHandler := file.NewFileHandler(fileService)
 
-	http.HandleFunc("/file/", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.DefaultServeMux
+
+	mux.HandleFunc("/file/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
 			fileHandler.GetFile(w, r)
@@ -57,9 +60,13 @@ func main() {
 			fileHandler.DeleteFile(w, r)
 		}
 	})
-	http.HandleFunc("/file", fileHandler.UploadFile)
+	mux.HandleFunc("/file", fileHandler.UploadFile)
 
-	err = http.ListenAndServe(":8080", nil)
+	var handler http.Handler = mux
+
+	handler = request.CORSMiddleware(handler)
+
+	err = http.ListenAndServe(":8080", handler)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
