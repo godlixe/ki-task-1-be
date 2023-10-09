@@ -26,6 +26,7 @@ type FileSystem interface {
 }
 
 type FileRepository interface {
+	List(ctx context.Context, fileType string) ([]File, error)
 	Create(ctx context.Context, file File) error
 	Get(ctx context.Context, id uint64) (File, error)
 	Delete(ctx context.Context, id uint64) error
@@ -47,6 +48,18 @@ func NewFileService(
 		fileRepository: fr,
 		guard:          g,
 	}
+}
+
+// ListFiles returns a list of file. Listed attributes are
+// id, filename, type, and filepath.
+func (fs *fileService) listFiles(ctx context.Context, fileType string) ([]File, error) {
+	var err error
+	res, err := fs.fileRepository.List(ctx, fileType)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
 }
 
 func (fs *fileService) getFile(ctx context.Context, id uint64) ([]byte, error) {
@@ -83,6 +96,7 @@ func (fs *fileService) storeFile(
 	userID uint64,
 	header multipart.FileHeader,
 	file multipart.File,
+	fileType string,
 ) ([]byte, error) {
 	var err error
 	var dFile File
@@ -119,6 +133,7 @@ func (fs *fileService) storeFile(
 	dFile = File{
 		UserID:   userID,
 		Filename: header.Filename,
+		Type:     fileType,
 		Filepath: "files/" + filepath,
 		Metadata: metadata,
 	}

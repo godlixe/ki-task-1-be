@@ -27,19 +27,22 @@ func (fr *fileRepository) Create(ctx context.Context, file File) error {
 	INSERT INTO
 		files (
 			filename,
+			type,
 			filepath,
 			metadata
 		)
 	VALUES (
 		$1,
 		$2,
-		$3
+		$3,
+		$4
 	)
 	`
 	_, err = fr.db.GetConn().Exec(
 		ctx,
 		stmt,
 		file.Filename,
+		file.Type,
 		file.Filepath,
 		file.Metadata,
 	)
@@ -75,7 +78,45 @@ func (fr *fileRepository) Get(ctx context.Context, id uint64) (File, error) {
 	}
 
 	return file, nil
+}
 
+func (fr *fileRepository) List(ctx context.Context, fileType string) ([]File, error) {
+	var files []File
+	var err error
+
+	stmt := `
+		SELECT
+				id, 
+				filename,
+				type
+		 FROM files 
+		 WHERE type = $1
+		 `
+
+	rows, err := fr.db.GetConn().Query(ctx, stmt, fileType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var f File
+		err := rows.Scan(
+			&f.ID,
+			&f.Filename,
+			&f.Type,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		files = append(files, f)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return files, nil
 }
 
 func (fr *fileRepository) Delete(ctx context.Context, id uint64) error {
