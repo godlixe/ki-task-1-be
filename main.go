@@ -61,6 +61,7 @@ func main() {
 		}
 	})
 	mux.HandleFunc("/file", fileHandler.UploadFile)
+	mux.HandleFunc("/files/", fileHandler.ListFiles)
 
 	var handler http.Handler = mux
 
