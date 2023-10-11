@@ -60,7 +60,14 @@ func main() {
 			fileHandler.DeleteFile(w, r)
 		}
 	})
-	mux.HandleFunc("/file", fileHandler.UploadFile)
+	mux.HandleFunc("/file", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "POST":
+			fileHandler.UploadFile(w, r)
+		case "OPTIONS":
+			w.Write([]byte("success"))
+		}
+	})
 	mux.HandleFunc("/files/", fileHandler.ListFiles)
 
 	var handler http.Handler = mux
