@@ -5,6 +5,7 @@ import (
 	"encryption/file"
 	"encryption/guard"
 	"encryption/request"
+	"encryption/user"
 	"fmt"
 	"net/http"
 	"os"
@@ -35,6 +36,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	userRepository := user.NewUserRepository(db)
 	fileRepository := file.NewFileRepository(db)
 	guardRepository := guard.NewGuardRepository(db)
 
@@ -45,12 +47,29 @@ func main() {
 		guardRepository,
 	)
 
+	userService := user.NewFileService(userRepository, *guard)
+	userHandler := user.NewUserHandler(userService)
+
 	fileSystem := file.NewFileSystem()
 
 	fileService := file.NewFileService(fileSystem, fileRepository, *guard)
 	fileHandler := file.NewFileHandler(fileService)
 
 	mux := http.DefaultServeMux
+
+	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "POST":
+			userHandler.Login(w, r)
+		}
+	})
+
+	mux.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "POST":
+			userHandler.Register(w, r)
+		}
+	})
 
 	mux.HandleFunc("/file/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
