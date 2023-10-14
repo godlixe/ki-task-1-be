@@ -62,7 +62,7 @@ func (fs *fileService) listFiles(ctx context.Context, fileType string) ([]File, 
 	return res, nil
 }
 
-func (fs *fileService) getFile(ctx context.Context, id uint64) ([]byte, error) {
+func (fs *fileService) getFile(ctx context.Context, id uint64) (*File, error) {
 	var err error
 	// get data from db
 	data, err := fs.fileRepository.Get(ctx, id)
@@ -88,7 +88,10 @@ func (fs *fileService) getFile(ctx context.Context, id uint64) ([]byte, error) {
 		return nil, err
 	}
 
-	return res, nil
+	return &File{
+		Filename: data.Filename,
+		Content:  res,
+	}, nil
 }
 
 func (fs *fileService) storeFile(

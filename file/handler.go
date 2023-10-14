@@ -3,6 +3,7 @@ package file
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"strconv"
@@ -11,7 +12,7 @@ import (
 
 type FileService interface {
 	listFiles(ctx context.Context, fileType string) ([]File, error)
-	getFile(ctx context.Context, id uint64) ([]byte, error)
+	getFile(ctx context.Context, id uint64) (*File, error)
 	storeFile(
 		ctx context.Context,
 		userID uint64,
@@ -105,8 +106,9 @@ func (h *Handler) GetFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%v\"", res.Filename))
 	w.WriteHeader(http.StatusOK)
-	w.Write(res)
+	w.Write(res.Content)
 }
 
 func (h *Handler) DeleteFile(w http.ResponseWriter, r *http.Request) {

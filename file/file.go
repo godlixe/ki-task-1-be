@@ -14,6 +14,9 @@ type File struct {
 	// Metadata is an encrypted reference to
 	// the file's key.
 	Metadata []byte `json:"-"`
+
+	// File content.
+	Content []byte
 }
 
 // Types for File.
