@@ -37,3 +37,18 @@ type LoginRequest struct {
 type LoginResponse struct {
 	Token string `json:"token"`
 }
+
+type GetProfileRequest struct {
+	UserID uint64 `binding:"required"`
+}
+
+type GetProfileResponse struct {
+	Username    string `json:"username"`
+	Name        string `json:"name"`
+	PhoneNumber string `json:"phone_number"`
+	Gender      string `json:"gender" binding:"required"`
+	Religion    string `json:"religion"`
+	Nationality string `json:"nationality"`
+	Address     string `json:"address"`
+	BirthInfo   string `json:"birth_info"`
+}

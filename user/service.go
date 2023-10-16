@@ -12,7 +12,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const fileTable = "user_keys"
+const userKeyTable = "user_keys"
 
 type Guard interface {
 	GetKey(table string, metadata []byte) (guard.Key, error)
@@ -23,6 +23,7 @@ type Guard interface {
 }
 
 type UserRepository interface {
+	GetById(context.Context, uint64) (*User, error)
 	GetByUsername(context.Context, string) (*User, error)
 	Create(context.Context, User) error
 }
@@ -124,7 +125,7 @@ func (us *userService) register(
 	user.EncryptUserData(&us.guard, key)
 
 	// store key to db
-	metadata, err := us.guard.StoreKey(ctx, fileTable, guard.Key{
+	metadata, err := us.guard.StoreKey(ctx, userKeyTable, guard.Key{
 		PlainKey: key,
 	})
 	if err != nil {
@@ -135,5 +136,35 @@ func (us *userService) register(
 
 	err = us.userRepository.Create(ctx, user)
 
-	return nil, err
+	return &RegisterResponse{}, nil
+}
+
+func (us *userService) getProfile(
+	ctx context.Context,
+	request GetProfileRequest,
+) (*GetProfileResponse, error) {
+	// find existing user with same username
+	user, err := us.userRepository.GetById(ctx, request.UserID)
+	if err != nil && err != pgx.ErrNoRows {
+		return nil, err
+	}
+
+	// Get key from db
+	key, err := us.guard.GetKey(ctx, userKeyTable, user.KeyReference)
+	if err != nil {
+		return nil, err
+	}
+
+	user.DecryptUserData(&us.guard, key)
+
+	return &GetProfileResponse{
+		Username:    user.Username,
+		Name:        user.Name,
+		PhoneNumber: user.PhoneNumber,
+		Gender:      user.Gender,
+		Religion:    user.Religion,
+		Nationality: user.Nationality,
+		Address:     user.Address,
+		BirthInfo:   user.BirthInfo,
+	}, nil
 }

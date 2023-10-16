@@ -19,7 +19,7 @@ func GenerateAccessToken(userId uint64) (string, error) {
 	return token.SignedString([]byte(os.Getenv("ACCESS_TOKEN_KEY")))
 }
 
-func ValidateAccessToken(tokenString string, key string) (jwt.MapClaims, error) {
+func ValidateAccessToken(tokenString string) (jwt.MapClaims, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("Authentication validation failed")
@@ -31,7 +31,7 @@ func ValidateAccessToken(tokenString string, key string) (jwt.MapClaims, error) 
 	if err != nil {
 		switch err {
 		case jwt.ErrTokenExpired:
-			return nil, errors.New("Token expired. Please re-login")
+			return nil, errors.New("Token expired")
 		default:
 			return nil, errors.New("Token invalid")
 		}

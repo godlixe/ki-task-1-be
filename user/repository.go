@@ -20,6 +20,46 @@ func NewUserRepository(db DB) *userRepository {
 	}
 }
 
+func (fr *userRepository) GetById(ctx context.Context, userId uint64) (*User, error) {
+	var user User
+
+	stmt := `
+	SELECT
+		id,
+		username,
+		password,
+		name,
+		phone_number,
+		gender,
+		religion,
+		nationality,
+		address,
+		birth_info,
+		key_reference
+	FROM users
+	WHERE id = $1
+	`
+
+	err := fr.db.GetConn().QueryRow(ctx, stmt, userId).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Password,
+		&user.Name,
+		&user.PhoneNumber,
+		&user.Gender,
+		&user.Religion,
+		&user.Nationality,
+		&user.Address,
+		&user.BirthInfo,
+		&user.KeyReference,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
 func (fr *userRepository) GetByUsername(ctx context.Context, username string) (*User, error) {
 	var user User
 
