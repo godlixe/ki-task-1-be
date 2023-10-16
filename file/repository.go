@@ -29,7 +29,7 @@ func (fr *fileRepository) Create(ctx context.Context, file File) error {
 			filename,
 			type,
 			filepath,
-			metadata
+			key_reference
 		)
 	VALUES (
 		$1,
@@ -44,7 +44,7 @@ func (fr *fileRepository) Create(ctx context.Context, file File) error {
 		file.Filename,
 		file.Type,
 		file.Filepath,
-		file.Metadata,
+		file.KeyReference,
 	)
 	if err != nil {
 		return err
@@ -62,7 +62,7 @@ func (fr *fileRepository) Get(ctx context.Context, id uint64) (File, error) {
 	 		id, 
 			filename,
 			filepath,
-			metadata 
+			key_reference 
 	 FROM files 
 	 WHERE id = $1
 	 `
@@ -71,7 +71,7 @@ func (fr *fileRepository) Get(ctx context.Context, id uint64) (File, error) {
 		&file.ID,
 		&file.Filename,
 		&file.Filepath,
-		&file.Metadata,
+		&file.KeyReference,
 	)
 	if err != nil {
 		return File{}, err

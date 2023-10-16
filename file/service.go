@@ -77,7 +77,7 @@ func (fs *fileService) getFile(ctx context.Context, id uint64) (*File, error) {
 	}
 
 	// Get key from db
-	key, err := fs.guard.GetKey(ctx, fileTable, data.Metadata)
+	key, err := fs.guard.GetKey(ctx, fileTable, data.KeyReference)
 	if err != nil {
 		return nil, err
 	}
@@ -134,11 +134,11 @@ func (fs *fileService) storeFile(
 	fs.fileSystem.Write("files/"+filepath, res)
 
 	dFile = File{
-		UserID:   userID,
-		Filename: header.Filename,
-		Type:     fileType,
-		Filepath: "files/" + filepath,
-		Metadata: metadata,
+		UserID:       userID,
+		Filename:     header.Filename,
+		Type:         fileType,
+		Filepath:     "files/" + filepath,
+		KeyReference: metadata,
 	}
 
 	// save file to db
