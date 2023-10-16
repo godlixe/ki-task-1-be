@@ -26,6 +26,7 @@ func (fr *fileRepository) Create(ctx context.Context, file File) error {
 	stmt := `
 	INSERT INTO
 		files (
+			user_id,
 			filename,
 			type,
 			filepath,
@@ -35,12 +36,14 @@ func (fr *fileRepository) Create(ctx context.Context, file File) error {
 		$1,
 		$2,
 		$3,
-		$4
+		$4,
+		$5
 	)
 	`
 	_, err = fr.db.GetConn().Exec(
 		ctx,
 		stmt,
+		file.UserID,
 		file.Filename,
 		file.Type,
 		file.Filepath,
@@ -60,6 +63,7 @@ func (fr *fileRepository) Get(ctx context.Context, id uint64) (File, error) {
 	stmt := `
 	SELECT
 	 		id, 
+			user_id,
 			filename,
 			filepath,
 			key_reference 
@@ -69,6 +73,7 @@ func (fr *fileRepository) Get(ctx context.Context, id uint64) (File, error) {
 
 	err = fr.db.GetConn().QueryRow(ctx, stmt, id).Scan(
 		&file.ID,
+		&file.UserID,
 		&file.Filename,
 		&file.Filepath,
 		&file.KeyReference,
@@ -80,7 +85,7 @@ func (fr *fileRepository) Get(ctx context.Context, id uint64) (File, error) {
 	return file, nil
 }
 
-func (fr *fileRepository) List(ctx context.Context, fileType string) ([]File, error) {
+func (fr *fileRepository) List(ctx context.Context, userID uint64, fileType string) ([]File, error) {
 	var files []File
 	var err error
 
@@ -91,9 +96,10 @@ func (fr *fileRepository) List(ctx context.Context, fileType string) ([]File, er
 				type
 		 FROM files 
 		 WHERE type = $1
+		 AND user_id = $2
 		 `
 
-	rows, err := fr.db.GetConn().Query(ctx, stmt, fileType)
+	rows, err := fr.db.GetConn().Query(ctx, stmt, fileType, userID)
 	if err != nil {
 		return nil, err
 	}

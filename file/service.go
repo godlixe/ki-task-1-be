@@ -3,6 +3,7 @@ package file
 import (
 	"context"
 	"encryption/guard"
+	"errors"
 	"io"
 	"mime/multipart"
 
@@ -26,7 +27,7 @@ type FileSystem interface {
 }
 
 type FileRepository interface {
-	List(ctx context.Context, fileType string) ([]File, error)
+	List(ctx context.Context, userID uint64, fileType string) ([]File, error)
 	Create(ctx context.Context, file File) error
 	Get(ctx context.Context, id uint64) (File, error)
 	Delete(ctx context.Context, id uint64) error
@@ -52,9 +53,9 @@ func NewFileService(
 
 // ListFiles returns a list of file. Listed attributes are
 // id, filename, type, and filepath.
-func (fs *fileService) listFiles(ctx context.Context, fileType string) ([]File, error) {
+func (fs *fileService) listFiles(ctx context.Context, userID uint64, fileType string) ([]File, error) {
 	var err error
-	res, err := fs.fileRepository.List(ctx, fileType)
+	res, err := fs.fileRepository.List(ctx, userID, fileType)
 	if err != nil {
 		return nil, err
 	}
@@ -62,12 +63,17 @@ func (fs *fileService) listFiles(ctx context.Context, fileType string) ([]File, 
 	return res, nil
 }
 
-func (fs *fileService) getFile(ctx context.Context, id uint64) (*File, error) {
+func (fs *fileService) getFile(ctx context.Context, userID uint64, id uint64) (*File, error) {
 	var err error
 	// get data from db
 	data, err := fs.fileRepository.Get(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+
+	// return if userID doesnt match
+	if data.UserID != userID {
+		return nil, errors.New("unauthorized")
 	}
 
 	// get file from filesystem
@@ -150,8 +156,19 @@ func (fs *fileService) storeFile(
 	return res, nil
 }
 
-func (fs *fileService) deleteFile(ctx context.Context, id uint64) error {
-	err := fs.fileRepository.Delete(ctx, id)
+func (fs *fileService) deleteFile(ctx context.Context, userID uint64, id uint64) error {
+	// get data from db
+	data, err := fs.fileRepository.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// return if userID doesnt match
+	if data.UserID != userID {
+		return errors.New("unauthorized")
+	}
+
+	err = fs.fileRepository.Delete(ctx, id)
 	if err != nil {
 		return err
 	}

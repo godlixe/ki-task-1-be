@@ -61,6 +61,8 @@ func main() {
 		switch r.Method {
 		case "POST":
 			userHandler.Login(w, r)
+		case "OPTIONS":
+			w.Write([]byte("success"))
 		}
 	})
 
@@ -68,6 +70,9 @@ func main() {
 		switch r.Method {
 		case "POST":
 			userHandler.Register(w, r)
+		case "OPTIONS":
+			w.Write([]byte("success"))
+
 		}
 	})
 
@@ -77,27 +82,37 @@ func main() {
 			userHandler.GetProfile(w, r)
 		case "PUT":
 			userHandler.UpdateProfile(w, r)
+		case "OPTIONS":
+			w.Write([]byte("success"))
 		}
 	}
 	mux.Handle("/profile", request.AuthMiddleware(http.HandlerFunc(profileHandler)))
 
-	mux.HandleFunc("/file/", func(w http.ResponseWriter, r *http.Request) {
+	subFileRoutes := func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
 			fileHandler.GetFile(w, r)
 		case "DELETE":
 			fileHandler.DeleteFile(w, r)
+		case "OPTIONS":
+			w.Write([]byte("success"))
 		}
-	})
-	mux.HandleFunc("/file", func(w http.ResponseWriter, r *http.Request) {
+	}
+
+	mux.Handle("/file/", request.AuthMiddleware(http.HandlerFunc(subFileRoutes)))
+
+	fileRoutes := func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "POST":
 			fileHandler.UploadFile(w, r)
 		case "OPTIONS":
 			w.Write([]byte("success"))
 		}
-	})
-	mux.HandleFunc("/files/", fileHandler.ListFiles)
+	}
+
+	mux.Handle("/file", request.AuthMiddleware(http.HandlerFunc(fileRoutes)))
+
+	mux.Handle("/files/", request.AuthMiddleware(http.HandlerFunc(fileHandler.ListFiles)))
 
 	var handler http.Handler = mux
 
