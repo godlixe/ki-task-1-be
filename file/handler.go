@@ -36,6 +36,8 @@ func NewFileHandler(
 }
 
 func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
+	userId := uint64(r.Context().Value("user_id").(float64))
+
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -55,7 +57,7 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 	defer uploadedFile.Close()
 
-	res, err := h.fileService.storeFile(context.TODO(), 1, *header, uploadedFile, fileType)
+	res, err := h.fileService.storeFile(context.TODO(), userId, *header, uploadedFile, fileType)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

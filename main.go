@@ -36,9 +36,23 @@ func main() {
 		os.Exit(1)
 	}
 
+	guardDB, err := database.NewPostgresClient(
+		database.DatabaseCredentials{
+			Host:     os.Getenv("GUARD_DB_HOST"),
+			User:     os.Getenv("GUARD_DB_USER"),
+			Password: os.Getenv("GUARD_DB_PASS"),
+			Port:     os.Getenv("GUARD_DB_PORT"),
+			DBName:   os.Getenv("GUARD_DB_NAME"),
+		},
+	)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
 	userRepository := user.NewUserRepository(db)
 	fileRepository := file.NewFileRepository(db)
-	guardRepository := guard.NewGuardRepository(db)
+	guardRepository := guard.NewGuardRepository(guardDB)
 
 	guardMode, _ := strconv.Atoi(os.Getenv("GUARD_MODE"))
 	guard := guard.NewGuard(
