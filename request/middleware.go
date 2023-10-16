@@ -3,7 +3,6 @@ package request
 import (
 	"context"
 	"encryption/helper"
-	"fmt"
 	"net/http"
 	"strings"
 )
@@ -27,27 +26,23 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// cek prefix
 		if !strings.HasPrefix(authorizationHeader, "Bearer ") {
 			http.Error(w, "Token format invalid", http.StatusBadRequest)
 			return
 		}
-		// split, cek token exists
+
 		token := strings.Split(authorizationHeader, " ")[1]
 		if token == "" {
 			http.Error(w, "Token is required", http.StatusBadRequest)
 			return
 		}
 
-		// verify token
 		claims, err := helper.ValidateAccessToken(token)
 		if err != nil {
 			http.Error(w, "Token is required", http.StatusBadRequest)
 			return
 		}
 
-		fmt.Println("dari claims")
-		fmt.Println(claims["id"])
 		ctx := context.WithValue(r.Context(), "user_id", claims["id"])
 
 		next.ServeHTTP(w, r.WithContext(ctx))
