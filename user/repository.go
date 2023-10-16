@@ -139,3 +139,40 @@ func (fr *userRepository) Create(ctx context.Context, user User) error {
 
 	return nil
 }
+
+func (fr *userRepository) Update(ctx context.Context, user User) error {
+	stmt := `
+	UPDATE
+		users SET
+			username = $1,
+			password = $2,
+			name = $3,
+			phone_number = $4,
+			gender = $5,
+			religion = $6,
+			nationality = $7,
+			address = $8,
+			birth_info = $9
+	WHERE id = $10
+	`
+
+	_, err := fr.db.GetConn().Exec(
+		ctx,
+		stmt,
+		user.Username,
+		user.Password,
+		user.Name,
+		user.PhoneNumber,
+		user.Gender,
+		user.Religion,
+		user.Nationality,
+		user.Address,
+		user.BirthInfo,
+		user.ID,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

@@ -10,6 +10,7 @@ type UserService interface {
 	register(ctx context.Context, request RegisterRequest) (*RegisterResponse, error)
 	login(ctx context.Context, request LoginRequest) (*LoginResponse, error)
 	getProfile(ctx context.Context, request GetProfileRequest) (*GetProfileResponse, error)
+	updateProfile(ctx context.Context, request UpdateProfileRequest) (*UpdateProfileResponse, error)
 }
 
 type Handler struct {
@@ -119,6 +120,46 @@ func (h *Handler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	jsonResponse, err := json.Marshal(response)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(jsonResponse))
+}
+
+func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	var (
+		request UpdateProfileRequest
+		err     error
+	)
+
+	if err = json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err = request.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	userId := uint64(r.Context().Value("user_id").(float64))
+	request.UserID = userId
+
+	_, err = h.userService.updateProfile(context.TODO(), request)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	response := Response{
+		Message: "Update profile success",
+	}
+
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 

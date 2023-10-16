@@ -52,3 +52,25 @@ type GetProfileResponse struct {
 	Address     string `json:"address"`
 	BirthInfo   string `json:"birth_info"`
 }
+
+type UpdateProfileRequest struct {
+	UserID      uint64
+	Username    string `json:"username" binding:"required"`
+	Name        string `json:"name" binding:"required"`
+	PhoneNumber string `json:"phone_number" binding:"required"`
+	Gender      string `json:"gender" binding:"required,oneof=male female"`
+	Religion    string `json:"religion" binding:"required"`
+	Nationality string `json:"nationality" binding:"required"`
+	Address     string `json:"address" binding:"required"`
+	BirthInfo   string `json:"birth_info" binding:"required"`
+}
+
+func (rr *UpdateProfileRequest) Validate() error {
+	if rr.Gender != Male && rr.Gender != Female {
+		return errors.New("Request invalid. Gender value must be male or female")
+	}
+	return nil
+}
+
+type UpdateProfileResponse struct {
+}

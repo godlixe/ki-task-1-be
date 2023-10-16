@@ -26,6 +26,7 @@ type UserRepository interface {
 	GetById(context.Context, uint64) (*User, error)
 	GetByUsername(context.Context, string) (*User, error)
 	Create(context.Context, User) error
+	Update(context.Context, User) error
 }
 
 type userService struct {
@@ -122,7 +123,10 @@ func (us *userService) register(
 	}
 
 	// encrypt user data
-	user.EncryptUserData(&us.guard, key)
+	err = user.EncryptUserData(&us.guard, key)
+	if err != nil {
+		return nil, err
+	}
 
 	// store key to db
 	metadata, err := us.guard.StoreKey(ctx, userKeyTable, guard.Key{
@@ -135,6 +139,9 @@ func (us *userService) register(
 	user.KeyReference = metadata
 
 	err = us.userRepository.Create(ctx, user)
+	if err != nil {
+		return nil, err
+	}
 
 	return &RegisterResponse{}, nil
 }
@@ -143,19 +150,20 @@ func (us *userService) getProfile(
 	ctx context.Context,
 	request GetProfileRequest,
 ) (*GetProfileResponse, error) {
-	// find existing user with same username
 	user, err := us.userRepository.GetById(ctx, request.UserID)
 	if err != nil && err != pgx.ErrNoRows {
 		return nil, err
 	}
 
-	// Get key from db
 	key, err := us.guard.GetKey(ctx, userKeyTable, user.KeyReference)
 	if err != nil {
 		return nil, err
 	}
 
-	user.DecryptUserData(&us.guard, key)
+	err = user.DecryptUserData(&us.guard, key)
+	if err != nil {
+		return nil, err
+	}
 
 	return &GetProfileResponse{
 		Username:    user.Username,
@@ -167,4 +175,44 @@ func (us *userService) getProfile(
 		Address:     user.Address,
 		BirthInfo:   user.BirthInfo,
 	}, nil
+}
+
+func (us *userService) updateProfile(
+	ctx context.Context,
+	request UpdateProfileRequest,
+) (*UpdateProfileResponse, error) {
+	existingUser, err := us.userRepository.GetById(ctx, request.UserID)
+	if err != nil && err != pgx.ErrNoRows {
+		return nil, err
+	}
+
+	user := User{
+		ID:           existingUser.ID,
+		Username:     request.Username,
+		Name:         request.Name,
+		PhoneNumber:  request.PhoneNumber,
+		Gender:       request.Gender,
+		Religion:     request.Religion,
+		Nationality:  request.Nationality,
+		Address:      request.Address,
+		BirthInfo:    request.BirthInfo,
+		KeyReference: existingUser.KeyReference,
+	}
+
+	key, err := us.guard.GetKey(ctx, userKeyTable, user.KeyReference)
+	if err != nil {
+		return nil, err
+	}
+
+	err = user.EncryptUserData(&us.guard, key.PlainKey)
+	if err != nil {
+		return nil, err
+	}
+
+	err = us.userRepository.Update(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+
+	return &UpdateProfileResponse{}, nil
 }
