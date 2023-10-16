@@ -50,3 +50,28 @@ func (u *User) EncryptUserData(guard *guard.Guard, key []byte) error {
 
 	return nil
 }
+
+func (u *User) DecryptUserData(guard *guard.Guard, key guard.Key) error {
+	var (
+		userV  = reflect.ValueOf(*u)
+		userEl = reflect.ValueOf(u).Elem()
+	)
+
+	for i := 0; i < userV.NumField(); i++ {
+		field := userV.Type().Field(i).Name
+		if !slices.Contains(unencryptedFields, field) {
+			value := userV.Field(i).Interface().(string)
+
+			hexValue, err := hex.DecodeString(value)
+
+			decryptedValue, err := guard.Decrypt(key.PlainKey, []byte(hexValue))
+			if err != nil {
+				return err
+			}
+
+			userEl.Field(i).SetString(string(decryptedValue[:]))
+		}
+	}
+
+	return nil
+}

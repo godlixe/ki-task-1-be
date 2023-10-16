@@ -9,6 +9,7 @@ import (
 type UserService interface {
 	register(ctx context.Context, request RegisterRequest) (*RegisterResponse, error)
 	login(ctx context.Context, request LoginRequest) (*LoginResponse, error)
+	getProfile(ctx context.Context, request GetProfileRequest) (*GetProfileResponse, error)
 }
 
 type Handler struct {
@@ -92,4 +93,36 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	w.Write(jsonResponse)
+}
+
+func (h *Handler) GetProfile(w http.ResponseWriter, r *http.Request) {
+	var (
+		request GetProfileRequest
+		err     error
+	)
+
+	userId := uint64(r.Context().Value("user_id").(float64))
+
+	request.UserID = userId
+
+	getProfileResponse, err := h.userService.getProfile(context.TODO(), request)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	response := Response{
+		Data:    getProfileResponse,
+		Message: "Get profile success",
+	}
+
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(jsonResponse))
 }

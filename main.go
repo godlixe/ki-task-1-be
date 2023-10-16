@@ -71,6 +71,8 @@ func main() {
 		}
 	})
 
+	mux.Handle("/profile", request.AuthMiddleware(http.HandlerFunc(userHandler.GetProfile)))
+
 	mux.HandleFunc("/file/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
