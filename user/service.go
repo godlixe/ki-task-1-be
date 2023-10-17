@@ -110,6 +110,14 @@ func (us *userService) register(
 		return nil, err
 	}
 
+	// store key to db
+	metadata, err := us.guard.StoreKey(ctx, userKeyTable, guard.Key{
+		PlainKey: key,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	user := User{
 		Username:    request.Username,
 		Password:    string(hashedPassword),
@@ -124,14 +132,6 @@ func (us *userService) register(
 
 	// encrypt user data
 	err = user.EncryptUserData(&us.guard, key)
-	if err != nil {
-		return nil, err
-	}
-
-	// store key to db
-	metadata, err := us.guard.StoreKey(ctx, userKeyTable, guard.Key{
-		PlainKey: key,
-	})
 	if err != nil {
 		return nil, err
 	}
