@@ -3,6 +3,7 @@ package file
 import (
 	"context"
 	"encoding/json"
+	"encryption/helper"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -39,31 +40,95 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	userId := uint64(r.Context().Value("user_id").(float64))
 
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
 		return
 	}
 
 	var fileType = r.FormValue("type")
 	fileType, err := ValidateType(fileType)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
 		return
 	}
 
 	uploadedFile, header, err := r.FormFile("file")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
 		return
 	}
 	defer uploadedFile.Close()
 
-	res, err := h.fileService.storeFile(context.TODO(), userId, *header, uploadedFile, fileType)
+	_, err = h.fileService.storeFile(context.TODO(), userId, *header, uploadedFile, fileType)
+	if err != nil {
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
+		return
+	}
+
+	response := helper.Response{
+		Message: "success",
+		Data:    nil,
+	}
+
+	jsonResponse, err := json.Marshal(response)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	w.Write(res)
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonResponse)
 }
 
 func (h *Handler) ListFiles(w http.ResponseWriter, r *http.Request) {
@@ -73,25 +138,54 @@ func (h *Handler) ListFiles(w http.ResponseWriter, r *http.Request) {
 
 	fileType, err := ValidateType(fileType)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
 		return
 	}
 
 	res, err := h.fileService.listFiles(context.TODO(), userId, fileType)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
 		return
 	}
 
-	b, err := json.Marshal(res)
+	response := helper.Response{
+		Message: "success",
+		Data:    res,
+	}
+
+	jsonResponse, err := json.Marshal(response)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
 	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(b)
+	w.Write(jsonResponse)
 }
 
 func (h *Handler) GetFile(w http.ResponseWriter, r *http.Request) {
@@ -100,13 +194,39 @@ func (h *Handler) GetFile(w http.ResponseWriter, r *http.Request) {
 
 	id, err := strconv.ParseUint(qID, 10, 64)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
 		return
 	}
 
 	res, err := h.fileService.getFile(context.TODO(), userId, id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
 		return
 	}
 
@@ -122,15 +242,54 @@ func (h *Handler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 
 	id, err := strconv.ParseUint(qID, 10, 64)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
 		return
 	}
 
 	err = h.fileService.deleteFile(context.TODO(), userId, id)
 	if err != nil {
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
+		return
+	}
+
+	response := helper.Response{
+		Message: "success",
+		Data:    nil,
+	}
+
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("delete success"))
+	w.Write(jsonResponse)
 }

@@ -40,11 +40,21 @@ func BenchmarkAESText(b *testing.B) {
 
 	data := "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"
 
+	var (
+		cipher []byte
+		err    error
+	)
+
 	for n := 0; n < b.N; n++ {
-		cipher, err := guard.Encrypt(key.PlainKey, []byte(data))
+		cipher, err = guard.Encrypt(key.PlainKey, []byte(data))
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	encryptTime := b.Elapsed()
+
+	for n := 0; n < b.N; n++ {
 
 		_, err = guard.Decrypt(key.PlainKey, cipher)
 		if err != nil {
@@ -52,8 +62,10 @@ func BenchmarkAESText(b *testing.B) {
 		}
 	}
 
+	decryptTime := b.Elapsed() - encryptTime
+
 	fmt.Println("number of iterations: ", b.N)
-	fmt.Println("elapsed:", b.Elapsed())
+	fmt.Printf("elapsed : %v (encryption) %v (decryption)\n", encryptTime, decryptTime)
 }
 
 func BenchmarkDESText(b *testing.B) {
@@ -62,12 +74,21 @@ func BenchmarkDESText(b *testing.B) {
 	key, _ := guardRepo.GetKey(context.Background(), "", 1)
 
 	data := "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"
+	var (
+		cipher []byte
+		err    error
+	)
 
 	for n := 0; n < b.N; n++ {
-		cipher, err := guard.Encrypt(key.PlainKey, []byte(data))
+		cipher, err = guard.Encrypt(key.PlainKey, []byte(data))
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	encryptTime := b.Elapsed()
+
+	for n := 0; n < b.N; n++ {
 
 		_, err = guard.Decrypt(key.PlainKey, cipher)
 		if err != nil {
@@ -75,8 +96,10 @@ func BenchmarkDESText(b *testing.B) {
 		}
 	}
 
+	decryptTime := b.Elapsed() - encryptTime
+
 	fmt.Println("number of iterations: ", b.N)
-	fmt.Println("elapsed:", b.Elapsed())
+	fmt.Printf("elapsed : %v (encryption) %v (decryption)\n", encryptTime, decryptTime)
 }
 
 func BenchmarkRC4Text(b *testing.B) {
@@ -86,11 +109,21 @@ func BenchmarkRC4Text(b *testing.B) {
 
 	data := "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"
 
+	var (
+		cipher []byte
+		err    error
+	)
+
 	for n := 0; n < b.N; n++ {
-		cipher, err := guard.Encrypt(key.PlainKey, []byte(data))
+		cipher, err = guard.Encrypt(key.PlainKey, []byte(data))
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	encryptTime := b.Elapsed()
+
+	for n := 0; n < b.N; n++ {
 
 		_, err = guard.Decrypt(key.PlainKey, cipher)
 		if err != nil {
@@ -98,8 +131,10 @@ func BenchmarkRC4Text(b *testing.B) {
 		}
 	}
 
+	decryptTime := b.Elapsed() - encryptTime
+
 	fmt.Println("number of iterations: ", b.N)
-	fmt.Println("elapsed:", b.Elapsed())
+	fmt.Printf("elapsed : %v (encryption) %v (decryption)\n", encryptTime, decryptTime)
 }
 
 func BenchmarkAESImage(b *testing.B) {
@@ -107,16 +142,26 @@ func BenchmarkAESImage(b *testing.B) {
 	guard := NewGuard(1, []byte("12345"), &guardRepo)
 	key, _ := guardRepo.GetKey(context.Background(), "", 1)
 
+	var (
+		cipher []byte
+		err    error
+	)
+
 	data, err := os.ReadFile("./test_files/tux.png")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for n := 0; n < b.N; n++ {
-		cipher, err := guard.Encrypt(key.PlainKey, []byte(data))
+		cipher, err = guard.Encrypt(key.PlainKey, []byte(data))
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	encryptTime := b.Elapsed()
+
+	for n := 0; n < b.N; n++ {
 
 		_, err = guard.Decrypt(key.PlainKey, cipher)
 		if err != nil {
@@ -124,24 +169,36 @@ func BenchmarkAESImage(b *testing.B) {
 		}
 	}
 
+	decryptTime := b.Elapsed() - encryptTime
+
 	fmt.Println("number of iterations: ", b.N)
-	fmt.Println("elapsed:", b.Elapsed())
+	fmt.Printf("elapsed : %v (encryption) %v (decryption)\n", encryptTime, decryptTime)
 }
 func BenchmarkRC4Image(b *testing.B) {
 	guardRepo := MockGuardRepo{GuardMode: 2}
 	guard := NewGuard(2, []byte("12345"), &guardRepo)
 	key, _ := guardRepo.GetKey(context.Background(), "", 1)
 
+	var (
+		cipher []byte
+		err    error
+	)
+
 	data, err := os.ReadFile("./test_files/tux.png")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for n := 0; n < b.N; n++ {
-		cipher, err := guard.Encrypt(key.PlainKey, []byte(data))
+		cipher, err = guard.Encrypt(key.PlainKey, []byte(data))
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	encryptTime := b.Elapsed()
+
+	for n := 0; n < b.N; n++ {
 
 		_, err = guard.Decrypt(key.PlainKey, cipher)
 		if err != nil {
@@ -149,24 +206,36 @@ func BenchmarkRC4Image(b *testing.B) {
 		}
 	}
 
+	decryptTime := b.Elapsed() - encryptTime
+
 	fmt.Println("number of iterations: ", b.N)
-	fmt.Println("elapsed:", b.Elapsed())
+	fmt.Printf("elapsed : %v (encryption) %v (decryption)\n", encryptTime, decryptTime)
 }
 func BenchmarkDESImage(b *testing.B) {
 	guardRepo := MockGuardRepo{GuardMode: 3}
 	guard := NewGuard(3, []byte("12345"), &guardRepo)
 	key, _ := guardRepo.GetKey(context.Background(), "", 1)
 
+	var (
+		cipher []byte
+		err    error
+	)
+
 	data, err := os.ReadFile("./test_files/tux.png")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for n := 0; n < b.N; n++ {
-		cipher, err := guard.Encrypt(key.PlainKey, []byte(data))
+		cipher, err = guard.Encrypt(key.PlainKey, []byte(data))
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	encryptTime := b.Elapsed()
+
+	for n := 0; n < b.N; n++ {
 
 		_, err = guard.Decrypt(key.PlainKey, cipher)
 		if err != nil {
@@ -174,8 +243,10 @@ func BenchmarkDESImage(b *testing.B) {
 		}
 	}
 
+	decryptTime := b.Elapsed() - encryptTime
+
 	fmt.Println("number of iterations: ", b.N)
-	fmt.Println("elapsed:", b.Elapsed())
+	fmt.Printf("elapsed : %v (encryption) %v (decryption)\n", encryptTime, decryptTime)
 }
 
 func BenchmarkAESPDF(b *testing.B) {
@@ -183,16 +254,26 @@ func BenchmarkAESPDF(b *testing.B) {
 	guard := NewGuard(1, []byte("12345"), &guardRepo)
 	key, _ := guardRepo.GetKey(context.Background(), "", 1)
 
+	var (
+		cipher []byte
+		err    error
+	)
+
 	data, err := os.ReadFile("./test_files/gnu-c-manual.pdf")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for n := 0; n < b.N; n++ {
-		cipher, err := guard.Encrypt(key.PlainKey, []byte(data))
+		cipher, err = guard.Encrypt(key.PlainKey, []byte(data))
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	encryptTime := b.Elapsed()
+
+	for n := 0; n < b.N; n++ {
 
 		_, err = guard.Decrypt(key.PlainKey, cipher)
 		if err != nil {
@@ -200,8 +281,10 @@ func BenchmarkAESPDF(b *testing.B) {
 		}
 	}
 
+	decryptTime := b.Elapsed() - encryptTime
+
 	fmt.Println("number of iterations: ", b.N)
-	fmt.Println("elapsed:", b.Elapsed())
+	fmt.Printf("elapsed : %v (encryption) %v (decryption)\n", encryptTime, decryptTime)
 }
 
 func BenchmarkRC4PDF(b *testing.B) {
@@ -209,16 +292,26 @@ func BenchmarkRC4PDF(b *testing.B) {
 	guard := NewGuard(2, []byte("12345"), &guardRepo)
 	key, _ := guardRepo.GetKey(context.Background(), "", 1)
 
+	var (
+		cipher []byte
+		err    error
+	)
+
 	data, err := os.ReadFile("./test_files/gnu-c-manual.pdf")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for n := 0; n < b.N; n++ {
-		cipher, err := guard.Encrypt(key.PlainKey, []byte(data))
+		cipher, err = guard.Encrypt(key.PlainKey, []byte(data))
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	encryptTime := b.Elapsed()
+
+	for n := 0; n < b.N; n++ {
 
 		_, err = guard.Decrypt(key.PlainKey, cipher)
 		if err != nil {
@@ -226,8 +319,10 @@ func BenchmarkRC4PDF(b *testing.B) {
 		}
 	}
 
+	decryptTime := b.Elapsed() - encryptTime
+
 	fmt.Println("number of iterations: ", b.N)
-	fmt.Println("elapsed:", b.Elapsed())
+	fmt.Printf("elapsed : %v (encryption) %v (decryption)\n", encryptTime, decryptTime)
 }
 
 func BenchmarkDESPDF(b *testing.B) {
@@ -235,16 +330,26 @@ func BenchmarkDESPDF(b *testing.B) {
 	guard := NewGuard(3, []byte("12345"), &guardRepo)
 	key, _ := guardRepo.GetKey(context.Background(), "", 1)
 
+	var (
+		cipher []byte
+		err    error
+	)
+
 	data, err := os.ReadFile("./test_files/gnu-c-manual.pdf")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for n := 0; n < b.N; n++ {
-		cipher, err := guard.Encrypt(key.PlainKey, []byte(data))
+		cipher, err = guard.Encrypt(key.PlainKey, []byte(data))
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	encryptTime := b.Elapsed()
+
+	for n := 0; n < b.N; n++ {
 
 		_, err = guard.Decrypt(key.PlainKey, cipher)
 		if err != nil {
@@ -252,8 +357,10 @@ func BenchmarkDESPDF(b *testing.B) {
 		}
 	}
 
+	decryptTime := b.Elapsed() - encryptTime
+
 	fmt.Println("number of iterations: ", b.N)
-	fmt.Println("elapsed:", b.Elapsed())
+	fmt.Printf("elapsed : %v (encryption) %v (decryption)\n", encryptTime, decryptTime)
 }
 
 func BenchmarkAESVideo(b *testing.B) {
@@ -261,16 +368,26 @@ func BenchmarkAESVideo(b *testing.B) {
 	guard := NewGuard(1, []byte("12345"), &guardRepo)
 	key, _ := guardRepo.GetKey(context.Background(), "", 1)
 
+	var (
+		cipher []byte
+		err    error
+	)
+
 	data, err := os.ReadFile("./test_files/deep_blue.mp4")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for n := 0; n < b.N; n++ {
-		cipher, err := guard.Encrypt(key.PlainKey, []byte(data))
+		cipher, err = guard.Encrypt(key.PlainKey, []byte(data))
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	encryptTime := b.Elapsed()
+
+	for n := 0; n < b.N; n++ {
 
 		_, err = guard.Decrypt(key.PlainKey, cipher)
 		if err != nil {
@@ -278,24 +395,36 @@ func BenchmarkAESVideo(b *testing.B) {
 		}
 	}
 
+	decryptTime := b.Elapsed() - encryptTime
+
 	fmt.Println("number of iterations: ", b.N)
-	fmt.Println("elapsed:", b.Elapsed())
+	fmt.Printf("elapsed : %v (encryption) %v (decryption)\n", encryptTime, decryptTime)
 }
 func BenchmarkRC4Video(b *testing.B) {
 	guardRepo := MockGuardRepo{GuardMode: 2}
 	guard := NewGuard(2, []byte("12345"), &guardRepo)
 	key, _ := guardRepo.GetKey(context.Background(), "", 1)
 
+	var (
+		cipher []byte
+		err    error
+	)
+
 	data, err := os.ReadFile("./test_files/deep_blue.mp4")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for n := 0; n < b.N; n++ {
-		cipher, err := guard.Encrypt(key.PlainKey, []byte(data))
+		cipher, err = guard.Encrypt(key.PlainKey, []byte(data))
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	encryptTime := b.Elapsed()
+
+	for n := 0; n < b.N; n++ {
 
 		_, err = guard.Decrypt(key.PlainKey, cipher)
 		if err != nil {
@@ -303,24 +432,36 @@ func BenchmarkRC4Video(b *testing.B) {
 		}
 	}
 
+	decryptTime := b.Elapsed() - encryptTime
+
 	fmt.Println("number of iterations: ", b.N)
-	fmt.Println("elapsed:", b.Elapsed())
+	fmt.Printf("elapsed : %v (encryption) %v (decryption)\n", encryptTime, decryptTime)
 }
 func BenchmarkDESVideo(b *testing.B) {
 	guardRepo := MockGuardRepo{GuardMode: 3}
 	guard := NewGuard(3, []byte("12345"), &guardRepo)
 	key, _ := guardRepo.GetKey(context.Background(), "", 1)
 
+	var (
+		cipher []byte
+		err    error
+	)
+
 	data, err := os.ReadFile("./test_files/deep_blue.mp4")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for n := 0; n < b.N; n++ {
-		cipher, err := guard.Encrypt(key.PlainKey, []byte(data))
+		cipher, err = guard.Encrypt(key.PlainKey, []byte(data))
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	encryptTime := b.Elapsed()
+
+	for n := 0; n < b.N; n++ {
 
 		_, err = guard.Decrypt(key.PlainKey, cipher)
 		if err != nil {
@@ -328,6 +469,8 @@ func BenchmarkDESVideo(b *testing.B) {
 		}
 	}
 
+	decryptTime := b.Elapsed() - encryptTime
+
 	fmt.Println("number of iterations: ", b.N)
-	fmt.Println("elapsed:", b.Elapsed())
+	fmt.Printf("elapsed : %v (encryption) %v (decryption)\n", encryptTime, decryptTime)
 }
