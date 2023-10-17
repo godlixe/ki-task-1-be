@@ -152,7 +152,7 @@ func (fr *userRepository) Update(ctx context.Context, user User) error {
 			nationality = $6,
 			address = $7,
 			birth_info = $8
-	WHERE id = $10
+	WHERE id = $9
 	`
 
 	_, err := fr.db.GetConn().Exec(
