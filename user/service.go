@@ -186,6 +186,15 @@ func (us *userService) updateProfile(
 		return nil, err
 	}
 
+	otherUser, err := us.userRepository.GetByUsername(ctx, request.Username)
+	if err != nil {
+		return nil, err
+	}
+
+	if otherUser != nil && otherUser.Username != existingUser.Username {
+		return nil, errors.New("Username already taken")
+	}
+
 	user := User{
 		ID:           existingUser.ID,
 		Username:     request.Username,
