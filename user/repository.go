@@ -145,14 +145,13 @@ func (fr *userRepository) Update(ctx context.Context, user User) error {
 	UPDATE
 		users SET
 			username = $1,
-			password = $2,
-			name = $3,
-			phone_number = $4,
-			gender = $5,
-			religion = $6,
-			nationality = $7,
-			address = $8,
-			birth_info = $9
+			name = $2,
+			phone_number = $3,
+			gender = $4,
+			religion = $5,
+			nationality = $6,
+			address = $7,
+			birth_info = $8
 	WHERE id = $10
 	`
 
@@ -160,7 +159,6 @@ func (fr *userRepository) Update(ctx context.Context, user User) error {
 		ctx,
 		stmt,
 		user.Username,
-		user.Password,
 		user.Name,
 		user.PhoneNumber,
 		user.Gender,
