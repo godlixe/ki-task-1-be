@@ -132,7 +132,7 @@ func main() {
 
 	handler = request.CORSMiddleware(handler)
 
-	port := fmt.Sprintf(":%v", os.Getenv("DB_HOST"))
+	port := fmt.Sprintf(":%v", os.Getenv("APP_PORT"))
 	if port == ":" {
 		port = ":8080"
 	}
