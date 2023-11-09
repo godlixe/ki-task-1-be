@@ -132,7 +132,12 @@ func main() {
 
 	handler = request.CORSMiddleware(handler)
 
-	err = http.ListenAndServe(":8080", handler)
+	port := fmt.Sprintf(":%v", os.Getenv("DB_HOST"))
+	if port == ":" {
+		port = ":8080"
+	}
+
+	err = http.ListenAndServe(port, handler)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
