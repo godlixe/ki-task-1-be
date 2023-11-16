@@ -1,4 +1,4 @@
-package user
+package permission
 
 // Permission defines the existence of
 // a permission for source user to view

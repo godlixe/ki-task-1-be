@@ -6,6 +6,7 @@ import (
 	"encryption/guard"
 	"encryption/request"
 	"encryption/user"
+	"encryption/user/permission"
 	"fmt"
 	"net/http"
 	"os"
@@ -52,6 +53,7 @@ func main() {
 
 	userRepository := user.NewUserRepository(db)
 	fileRepository := file.NewFileRepository(db)
+	permissionRepository := permission.NewPermissionRepository(db)
 	guardRepository := guard.NewGuardRepository(guardDB)
 
 	guardMode, _ := strconv.Atoi(os.Getenv("GUARD_MODE"))
@@ -68,6 +70,9 @@ func main() {
 
 	fileService := file.NewFileService(fileSystem, fileRepository, *guard)
 	fileHandler := file.NewFileHandler(fileService)
+
+	permissionService := permission.NewPermissionService(permissionRepository)
+	permissionHandler := permission.NewPermissionHandler(permissionService)
 
 	mux := http.DefaultServeMux
 
@@ -127,6 +132,8 @@ func main() {
 	mux.Handle("/file", request.AuthMiddleware(http.HandlerFunc(fileRoutes)))
 
 	mux.Handle("/files/", request.AuthMiddleware(http.HandlerFunc(fileHandler.ListFiles)))
+
+	mux.Handle("/request/list", request.AuthMiddleware(http.HandlerFunc(permissionHandler.GetNotifications)))
 
 	var handler http.Handler = mux
 
