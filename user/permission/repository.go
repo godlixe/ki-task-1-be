@@ -32,11 +32,18 @@ func (pr *permissionRepository) GetNotifications(
 
 	stmt := `
 		SELECT
-				id, 
-				source_user_id,
-				target_user_id,
-				status
-		 FROM notifications 
+				n.id, 
+				n.source_user_id,
+				u1.username,
+				n.target_user_id,
+				u2.username,
+				n.status
+		 FROM 
+		 	notifications n
+		 LEFT JOIN
+		 	users u1 ON n.source_user_id = u1.id
+		LEFT JOIN 
+		 	users u2 ON n.target_user_id = u2.id
 		 WHERE 1=1
 		 AND
 		 `
@@ -45,16 +52,18 @@ func (pr *permissionRepository) GetNotifications(
 	var args []any
 
 	if status != 3 {
-		stmt += fmt.Sprintf(" status = $%v AND ", ctr)
+		stmt += fmt.Sprintf(" n.status = $%v AND ", ctr)
 		args = append(args, status)
 		ctr++
 	}
 
 	if direction == 0 {
-		stmt += fmt.Sprintf(" source_user_id = $%v", ctr)
+		stmt += fmt.Sprintf(" n.source_user_id = $%v", ctr)
 	} else {
-		stmt += fmt.Sprintf(" target_user_id = $%v", ctr)
+		stmt += fmt.Sprintf(" n.target_user_id = $%v", ctr)
 	}
+
+	fmt.Println(stmt)
 
 	args = append(args, userID)
 
@@ -69,7 +78,9 @@ func (pr *permissionRepository) GetNotifications(
 		err := rows.Scan(
 			&n.ID,
 			&n.SourceUserID,
+			&n.SourceUser.Username,
 			&n.TargetUserID,
+			&n.TargetUser.Username,
 			&n.Status,
 		)
 		if err != nil {
