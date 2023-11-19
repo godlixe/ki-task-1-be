@@ -41,7 +41,7 @@ func (u *User) EncryptUserData(guard *guard.Guard, key []byte) error {
 
 	for i := 0; i < userV.NumField(); i++ {
 		field := userV.Type().Field(i).Name
-		if !slices.Contains(unencryptedFields, field) {
+		if !slices.Contains(unencryptedFields, field) && !userV.Field(i).IsZero() {
 			value := userV.Field(i).Interface().(string)
 			encryptedValue, err := guard.Encrypt(key, []byte(value))
 			if err != nil {
