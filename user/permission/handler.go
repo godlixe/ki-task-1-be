@@ -6,6 +6,7 @@ import (
 	"encryption/helper"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 type PermissionService interface {
@@ -15,6 +16,10 @@ type PermissionService interface {
 		status int,
 		direction int,
 	) ([]Notification, error)
+	RequestPermission(
+		context.Context,
+		RequestPermissionRequest,
+	) (*RequestPermissionResponse, error)
 }
 
 type Handler struct {
@@ -86,3 +91,46 @@ func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write(jsonResponse)
 }
+
+func (h *Handler) RequestPermission(w http.ResponseWriter, r *http.Request) {
+	var (
+		request RequestPermissionRequest
+		err     error
+	)
+	userID := uint64(r.Context().Value("user_id").(float64))
+	username := strings.TrimPrefix(r.URL.Path, "/request/")
+
+	request = RequestPermissionRequest{
+		UserID:         userID,
+		TargetUsername: username,
+	}
+
+	_, err = h.permissionService.RequestPermission(context.Background(), request)
+
+	response := helper.Response{
+		Message: "Request successfully sent",
+	}
+
+	w.Header().Set("content-type", "application/json")
+
+	if err != nil {
+		response.Message = err.Error()
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
+		return
+	}
+
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	w.Write(jsonResponse)
+}
+

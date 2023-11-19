@@ -71,7 +71,7 @@ func main() {
 	fileService := file.NewFileService(fileSystem, fileRepository, *guard)
 	fileHandler := file.NewFileHandler(fileService)
 
-	permissionService := permission.NewPermissionService(permissionRepository)
+	permissionService := permission.NewPermissionService(permissionRepository, userRepository)
 	permissionHandler := permission.NewPermissionHandler(permissionService)
 
 	mux := http.DefaultServeMux
@@ -133,7 +133,18 @@ func main() {
 
 	mux.Handle("/files/", request.AuthMiddleware(http.HandlerFunc(fileHandler.ListFiles)))
 
+	permissionRoutes := func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "POST":
+			permissionHandler.RequestPermission(w, r)
+		case "OPTIONS":
+			w.Write([]byte("success"))
+		}
+	}
+
 	mux.Handle("/request/list", request.AuthMiddleware(http.HandlerFunc(permissionHandler.GetNotifications)))
+	mux.Handle("/request/", request.AuthMiddleware(http.HandlerFunc(permissionRoutes)))
+
 
 	var handler http.Handler = mux
 
