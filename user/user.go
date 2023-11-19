@@ -20,6 +20,8 @@ type User struct {
 	Nationality  string `json:"nationality"`
 	Address      string `json:"address"`
 	BirthInfo    string `json:"birth_info"`
+	PublicKey    string `json:"public_key"`
+	PrivateKey   string `json:"private_key"`
 	KeyReference []byte `json:"key_reference"`
 }
 

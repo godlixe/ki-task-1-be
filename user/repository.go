@@ -62,6 +62,55 @@ func (fr *userRepository) GetById(ctx context.Context, userId uint64) (*User, er
 	return &user, nil
 }
 
+func (fr *userRepository) GetUserWithRSA(
+	ctx context.Context,
+	userId uint64,
+) (*User, error) {
+	var user User
+
+	stmt := `
+	SELECT
+		id,
+		username,
+		password,
+		name,
+		phone_number,
+		email,
+		gender,
+		religion,
+		nationality,
+		address,
+		birth_info,
+		public_key,
+		private_key,
+		key_reference
+	FROM users
+	WHERE id = $1
+	`
+
+	err := fr.db.GetConn().QueryRow(ctx, stmt, userId).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Password,
+		&user.Name,
+		&user.PhoneNumber,
+		&user.Email,
+		&user.Gender,
+		&user.Religion,
+		&user.Nationality,
+		&user.Address,
+		&user.BirthInfo,
+		&user.PublicKey,
+		&user.PrivateKey,
+		&user.KeyReference,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
 func (fr *userRepository) GetByUsername(ctx context.Context, username string) (*User, error) {
 	var user User
 
@@ -118,10 +167,12 @@ func (fr *userRepository) Create(ctx context.Context, user User) error {
 			nationality,
 			address,
 			birth_info,
+			public_key,
+			private_key,
 			key_reference
 		)
 	VALUES (
-		$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+		$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
 	)
 	`
 	_, err := fr.db.GetConn().Exec(
@@ -137,6 +188,8 @@ func (fr *userRepository) Create(ctx context.Context, user User) error {
 		user.Nationality,
 		user.Address,
 		user.BirthInfo,
+		user.PublicKey,
+		user.PrivateKey,
 		user.KeyReference,
 	)
 	if err != nil {

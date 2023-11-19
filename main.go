@@ -72,7 +72,7 @@ func main() {
 	fileService := file.NewFileService(fileSystem, fileRepository, *guard)
 	fileHandler := file.NewFileHandler(fileService)
 
-	permissionService := permission.NewPermissionService(permissionRepository, userRepository, *guard)
+	permissionService := permission.NewPermissionService(permissionRepository, userRepository, *guard, &userService)
 	permissionHandler := permission.NewPermissionHandler(permissionService)
 
 	profileService := profile.NewProfileService(userRepository, permissionRepository, *guard)

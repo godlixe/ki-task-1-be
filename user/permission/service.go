@@ -2,18 +2,32 @@ package permission
 
 import (
 	"context"
-	"encoding/hex"
+	"encoding/base64"
 	"encryption/guard"
 	"encryption/helper"
 	"encryption/user"
 	"errors"
 	"fmt"
 
+	"crypto/rsa"
+
 	"github.com/jackc/pgx/v5"
 )
 
 const userKeyTable = "user_keys"
 const permissionTable = "permission_keys"
+
+type Guard interface {
+	GetKey(ctx context.Context, table string, metadata []byte) (guard.Key, error)
+	StoreKey(ctx context.Context, table string, key guard.Key) ([]byte, error)
+	GenerateKey() ([]byte, error)
+	GenerateStringKey() (string, error)
+	Decrypt(key []byte, data []byte) ([]byte, error)
+	Encrypt(key []byte, data []byte) ([]byte, error)
+	ParsePublicKey(key string) (*rsa.PublicKey, error)
+	EncryptRSA(publicKey *rsa.PublicKey, data []byte) ([]byte, error)
+	DecryptRSA(publicKey *rsa.PrivateKey, data []byte) ([]byte, error)
+}
 
 type PermissionRepository interface {
 	GetNotifications(
@@ -35,24 +49,30 @@ type UserRepository interface {
 	GetByUsername(context.Context, string) (*user.User, error)
 }
 
-type Guard interface {
-	GenerateKey() ([]byte, error)
+type UserService interface {
+	GetUserWithRSA(
+		ctx context.Context,
+		userID uint64,
+	) (*user.User, error)
 }
 
 type permissionService struct {
 	permissionRepository PermissionRepository
 	userRepository       UserRepository
 	guard                guard.Guard
+	userService          UserService
 }
 
 func NewPermissionService(
 	pr PermissionRepository,
 	ur UserRepository,
 	g guard.Guard,
-) permissionService {
-	return permissionService{
+	us UserService,
+) *permissionService {
+	return &permissionService{
 		permissionRepository: pr,
 		userRepository:       ur,
+		userService:          us,
 		guard:                g,
 	}
 }
@@ -111,7 +131,10 @@ func (ps *permissionService) RequestPermission(
 		Status:       0,
 	}
 
-	ps.permissionRepository.CreateNotification(ctx, notification)
+	err = ps.permissionRepository.CreateNotification(ctx, notification)
+	if err != nil {
+		return nil, err
+	}
 
 	return &RequestPermissionResponse{}, nil
 }
@@ -129,10 +152,6 @@ func (ps *permissionService) RespondPermissionRequest(
 		return nil, errors.New("You do not have access to this resource data.")
 	}
 
-	if notification.Status != 0 {
-		return nil, errors.New("Permission request has been already accept/reject before")
-	}
-
 	// update notification status
 	notification.Status = int(request.PermissionStatus)
 	err = ps.permissionRepository.UpdateNotification(ctx, *notification)
@@ -140,38 +159,32 @@ func (ps *permissionService) RespondPermissionRequest(
 		return nil, err
 	}
 
-	getDecryptedUser := func(userID uint64) (*user.User, error) {
-		user, err := ps.userRepository.GetById(ctx, userID)
-		if err != nil {
-			return nil, err
-		}
-		key, err := ps.guard.GetKey(ctx, userKeyTable, user.KeyReference)
-		if err != nil {
-			return nil, err
-		}
-		err = user.DecryptUserData(&ps.guard, key)
-		return user, err
-	}
-
-	sourceUser, err := getDecryptedUser(notification.SourceUserID)
+	// get source user
+	sourceUser, err := ps.userService.GetUserWithRSA(
+		ctx,
+		notification.SourceUserID,
+	)
 	if err != nil {
-		return nil, err
+		return &RespondPermissionRequestResponse{}, err
 	}
-	targetUser, err := getDecryptedUser(notification.TargetUserID)
+
+	// get target user
+	targetUser, err := ps.userService.GetUserWithRSA(
+		ctx,
+		notification.TargetUserID,
+	)
 	if err != nil {
-		return nil, err
+		return &RespondPermissionRequestResponse{}, err
 	}
-
-	var mail helper.Mail
-
+	fmt.Println(sourceUser, targetUser)
 	// send rejection email message
 	if request.PermissionStatus == 1 {
-		mail = helper.Mail{
-			Receiver: []string{sourceUser.Email},
-			Subject:  "Permission Request Information",
-			Body:     fmt.Sprintf("Your permission request to see %s data is rejected", targetUser.Username),
-		}
-		err = helper.SendEmail(mail)
+
+		err = helper.SendMail(
+			sourceUser.Email,
+			"Permission Request Information",
+			fmt.Sprintf("Your permission request to see %s data is rejected", targetUser.Username),
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -181,33 +194,51 @@ func (ps *permissionService) RespondPermissionRequest(
 		}, nil
 	}
 
-	// TODO: change to symmetric key generation standard
-	symmetricKey, err := ps.guard.GenerateKey()
+	// create symmetric key
+	symmetricKey, err := ps.guard.GenerateStringKey()
 	if err != nil {
-		return nil, err
+		return &RespondPermissionRequestResponse{}, err
 	}
 
-	// TODO: encrypt encrypted symmetric key encryption using user public key (asymmetric encryption) before sent to email
-
-	permission := Permission{
-		SourceUserID: notification.SourceUserID,
-		TargetUserID: notification.TargetUserID,
-		Key:          symmetricKey,
+	// encrypt symmetric key with source user's public key
+	publicKey, err := ps.guard.ParsePublicKey(sourceUser.PublicKey)
+	if err != nil {
+		return &RespondPermissionRequestResponse{}, err
 	}
 
-	err = ps.permissionRepository.CreatePermission(ctx, permission)
+	// encrypt with public key
+	encryptedSymmetricKey, err := ps.guard.EncryptRSA(publicKey, []byte(symmetricKey))
 	if err != nil {
-		return nil, err
+		return &RespondPermissionRequestResponse{}, err
+	}
+
+	err = ps.CreatePermission(ctx, sourceUser.ID, targetUser.ID, []byte(symmetricKey))
+	if err != nil {
+		return &RespondPermissionRequestResponse{}, err
 	}
 
 	// acceptance email message
-	mail = helper.Mail{
-		Receiver: []string{sourceUser.Email},
-		Subject:  "Permission Request Information",
-		Body:     fmt.Sprintf("Your permission request to see %s data is accepted. Here is your key: %s", targetUser.Username, hex.EncodeToString(permission.Key)),
-	}
 
-	err = helper.SendEmail(mail)
+	err = helper.SendMail(
+		sourceUser.Email,
+		"Permission Key For "+targetUser.Username,
+		fmt.Sprintf(`
+		<html>
+		Hi %v, your request to view user %v's profile has been approved. </br>
+		Below is the encrypted key that can be used to view user %v's profile. </br>
+		Note that the key can only be used by your profile to view.
+		</br>
+		</br>
+		</br>
+
+		%v
+		</html>
+		`, sourceUser.Username,
+			targetUser.Username,
+			targetUser.Username,
+			base64.StdEncoding.EncodeToString(encryptedSymmetricKey),
+		),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -215,4 +246,38 @@ func (ps *permissionService) RespondPermissionRequest(
 	return &RespondPermissionRequestResponse{
 		Message: "Respond success. Notification is sent to requested user.",
 	}, nil
+}
+
+func (ps *permissionService) CreatePermission(
+	ctx context.Context,
+	sourceUserID uint64,
+	targetUserID uint64,
+	symmetricKey []byte,
+) error {
+	// create key
+	key, err := ps.guard.GenerateKey()
+	if err != nil {
+		return err
+	}
+
+	// store key to db
+	metadata, err := ps.guard.StoreKey(ctx, permissionTable, guard.Key{
+		PlainKey: key,
+	})
+	if err != nil {
+		return err
+	}
+
+	// encrypt symmetric key
+	encryptedKey, err := ps.guard.Encrypt(key, symmetricKey)
+	if err != nil {
+		return err
+	}
+
+	return ps.permissionRepository.CreatePermission(ctx, Permission{
+		SourceUserID: sourceUserID,
+		TargetUserID: targetUserID,
+		Key:          encryptedKey,
+		KeyReference: metadata,
+	})
 }

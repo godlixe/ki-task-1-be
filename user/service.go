@@ -2,9 +2,14 @@ package user
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"encryption/guard"
 	"encryption/helper"
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 
@@ -27,6 +32,11 @@ type UserRepository interface {
 	GetByUsername(context.Context, string) (*User, error)
 	Create(context.Context, User) error
 	Update(context.Context, User) error
+
+	GetUserWithRSA(
+		ctx context.Context,
+		userId uint64,
+	) (*User, error)
 }
 
 type userService struct {
@@ -51,6 +61,7 @@ func (us *userService) login(ctx context.Context, request LoginRequest) (*LoginR
 		case pgx.ErrNoRows:
 			return nil, errors.New("Username and/or password is wrong")
 		default:
+			fmt.Println(err)
 			return nil, errors.New("Token invalid")
 		}
 	}
@@ -104,6 +115,29 @@ func (us *userService) register(
 		return nil, err
 	}
 
+	// generate RSA key
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, err
+	}
+
+	publicKey := privateKey.Public()
+
+	// Encode private key to PKCS#1 ASN.1 PEM.
+	privPEM := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+		},
+	)
+	// Encode public key to PKCS#1 ASN.1 PEM.
+	pubPEM := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "RSA PUBLIC KEY",
+			Bytes: x509.MarshalPKCS1PublicKey(publicKey.(*rsa.PublicKey)),
+		},
+	)
+
 	// create key
 	key, err := us.guard.GenerateKey()
 	if err != nil {
@@ -129,6 +163,8 @@ func (us *userService) register(
 		Nationality: request.Nationality,
 		Address:     request.Address,
 		BirthInfo:   request.BirthInfo,
+		PublicKey:   string(pubPEM),
+		PrivateKey:  string(privPEM),
 	}
 
 	// encrypt user data
@@ -227,4 +263,26 @@ func (us *userService) updateProfile(
 	}
 
 	return &UpdateProfileResponse{}, nil
+}
+
+func (us *userService) GetUserWithRSA(
+	ctx context.Context,
+	userID uint64,
+) (*User, error) {
+	user, err := us.userRepository.GetUserWithRSA(ctx, userID)
+	if err != nil && err != pgx.ErrNoRows {
+		return nil, err
+	}
+
+	key, err := us.guard.GetKey(ctx, userKeyTable, user.KeyReference)
+	if err != nil {
+		return nil, err
+	}
+
+	err = user.DecryptUserData(&us.guard, key)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }

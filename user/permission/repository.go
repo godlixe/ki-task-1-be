@@ -286,3 +286,60 @@ func (pr *permissionRepository) CreatePermission(ctx context.Context, permission
 
 	return nil
 }
+
+func (pr *permissionRepository) GetNotificationByID(
+	ctx context.Context,
+	notificationID uint64,
+) (Notification, error) {
+	var notification Notification
+	var err error
+
+	stmt := `
+		SELECT
+				n.id, 
+				n.source_user_id,
+				n.target_user_id,
+				n.status
+		 FROM 
+		 	notifications n
+		 WHERE id = $1
+		 `
+
+	err = pr.db.GetConn().QueryRow(ctx, stmt, notificationID).Scan(
+		&notification.ID,
+		&notification.SourceUserID,
+		&notification.TargetUserID,
+		&notification.Status,
+	)
+	if err != nil {
+		return Notification{}, err
+	}
+
+	return notification, nil
+}
+
+func (pr *permissionRepository) UpdateNotificationStatus(
+	ctx context.Context,
+	notification Notification,
+) error {
+	stmt := `
+	UPDATE
+		notifications 
+	SET
+		status = $1
+	WHERE 
+		id = $2
+	`
+
+	_, err := pr.db.GetConn().Exec(
+		ctx,
+		stmt,
+		notification.Status,
+		notification.ID,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

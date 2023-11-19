@@ -31,3 +31,7 @@ type Notification struct {
 	// - 2 : Request accepted
 	Status int `json:"status"`
 }
+
+type RespondRequest struct {
+	Status int `json:"status"`
+}

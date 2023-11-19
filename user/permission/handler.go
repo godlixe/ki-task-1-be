@@ -16,10 +16,12 @@ type PermissionService interface {
 		status int,
 		direction int,
 	) ([]Notification, error)
+
 	RequestPermission(
 		context.Context,
 		RequestPermissionRequest,
 	) (*RequestPermissionResponse, error)
+
 	RespondPermissionRequest(
 		context.Context,
 		RespondPermissionRequestRequest,
@@ -31,10 +33,10 @@ type Handler struct {
 }
 
 func NewPermissionHandler(
-	ps permissionService,
+	ps PermissionService,
 ) Handler {
 	return Handler{
-		permissionService: &ps,
+		permissionService: ps,
 	}
 }
 
@@ -110,6 +112,23 @@ func (h *Handler) RequestPermission(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = h.permissionService.RequestPermission(context.Background(), request)
+	if err != nil {
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
+		return
+	}
 
 	response := helper.Response{
 		Message: "Request successfully sent",

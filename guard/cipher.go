@@ -8,7 +8,11 @@ import (
 	"crypto/des"
 	"crypto/rand"
 	"crypto/rc4"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/binary"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -101,6 +105,19 @@ func (g *Guard) GenerateKey() ([]byte, error) {
 	}
 
 	return key, nil
+}
+
+// GenerateKey generates a random key of length 32 bytes, or
+// 8 bytes (for DES mode).
+func (g *Guard) GenerateStringKey() (string, error) {
+	key := make([]byte, 32)
+
+	_, err := rand.Read(key)
+	if err != nil {
+		return "", err
+	}
+
+	return base64.StdEncoding.EncodeToString(key), nil
 }
 
 // Pad pads the data based on PKCS7 standards.
@@ -224,4 +241,58 @@ func (g *Guard) Encrypt(key []byte, data []byte) ([]byte, error) {
 	}
 
 	return nil, errors.New("invalid guard mode")
+}
+
+func (g *Guard) ParsePublicKey(key string) (*rsa.PublicKey, error) {
+	block, _ := pem.Decode([]byte(key))
+	if block == nil {
+		return nil, errors.New("invalid public key")
+	}
+
+	publicKey, err := x509.ParsePKCS1PublicKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return publicKey, nil
+}
+
+func (g *Guard) ParsePrivateKey(key string) (*rsa.PrivateKey, error) {
+	block, _ := pem.Decode([]byte(key))
+	if block == nil {
+		return nil, errors.New("invalid private key")
+	}
+
+	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return privateKey, nil
+}
+
+func (g *Guard) EncryptRSA(publicKey *rsa.PublicKey, data []byte) ([]byte, error) {
+	ciphertext, err := rsa.EncryptPKCS1v15(
+		rand.Reader,
+		publicKey,
+		data,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return ciphertext, err
+}
+
+func (g *Guard) DecryptRSA(publicKey *rsa.PrivateKey, data []byte) ([]byte, error) {
+	ciphertext, err := rsa.DecryptPKCS1v15(
+		rand.Reader,
+		publicKey,
+		data,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return ciphertext, err
 }
