@@ -95,6 +95,38 @@ func (pr *permissionRepository) GetNotifications(
 
 	return notifications, nil
 }
+
+func (pr *permissionRepository) GetNotificationById(ctx context.Context, notifcationID uint64) (*Notification, error) {
+	var notification Notification
+
+	stmt := `
+		SELECT
+			id,
+			source_user_id,
+			target_user_id,
+			status
+		FROM notifications
+		WHERE
+			id = $1
+	`
+
+	err := pr.db.GetConn().QueryRow(
+		ctx,
+		stmt,
+		notifcationID,
+	).Scan(
+		&notification.ID,
+		&notification.SourceUserID,
+		&notification.TargetUserID,
+		&notification.Status,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &notification, nil
+}
+
 func (pr *permissionRepository) GetLastestNotification(
 	ctx context.Context,
 	sourceUserID uint64,
@@ -163,6 +195,31 @@ func (pr *permissionRepository) CreateNotification(ctx context.Context, notifica
 	return nil
 }
 
+func (pr *permissionRepository) UpdateNotification(ctx context.Context, notification Notification) error {
+	stmt := `
+		UPDATE
+			notifications SET
+				source_user_id = $2,
+				target_user_id = $3 ,
+				status = $4
+		WHERE id = $1
+	`
+
+	_, err := pr.db.GetConn().Exec(
+		ctx,
+		stmt,
+		notification.ID,
+		notification.SourceUserID,
+		notification.TargetUserID,
+		notification.Status,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (pr *permissionRepository) GetPermissionByUserId(ctx context.Context, sourceUserID uint64, targetUserID uint64) (*Permission, error) {
 	var permission Permission
 
@@ -198,3 +255,34 @@ func (pr *permissionRepository) GetPermissionByUserId(ctx context.Context, sourc
 	return &permission, nil
 }
 
+func (pr *permissionRepository) CreatePermission(ctx context.Context, permission Permission) error {
+	stmt := `
+		INSERT INTO
+			permissions (
+				source_user_id,
+				target_user_id,
+				key,
+				key_reference
+			)
+		VALUES (
+			$1,
+			$2,
+			$3,
+			$4
+		)
+	`
+
+	_, err := pr.db.GetConn().Exec(
+		ctx,
+		stmt,
+		permission.SourceUserID,
+		permission.TargetUserID,
+		permission.Key,
+		permission.KeyReference,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
