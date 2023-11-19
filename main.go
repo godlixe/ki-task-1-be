@@ -7,6 +7,7 @@ import (
 	"encryption/request"
 	"encryption/user"
 	"encryption/user/permission"
+	"encryption/user/profile"
 	"fmt"
 	"net/http"
 	"os"
@@ -74,6 +75,9 @@ func main() {
 	permissionService := permission.NewPermissionService(permissionRepository, userRepository, *guard)
 	permissionHandler := permission.NewPermissionHandler(permissionService)
 
+	profileService := profile.NewProfileService(userRepository, permissionRepository, *guard)
+	profileHandler := profile.NewUserHandler(profileService)
+
 	mux := http.DefaultServeMux
 
 	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
@@ -95,7 +99,7 @@ func main() {
 		}
 	})
 
-	profileHandler := func(w http.ResponseWriter, r *http.Request) {
+	baseProfileRoutes := func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
 			userHandler.GetProfile(w, r)
@@ -105,7 +109,17 @@ func main() {
 			w.Write([]byte("success"))
 		}
 	}
-	mux.Handle("/profile", request.AuthMiddleware(http.HandlerFunc(profileHandler)))
+	mux.Handle("/profile", request.AuthMiddleware(http.HandlerFunc(baseProfileRoutes)))
+
+	profileRoutes := func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "POST":
+			profileHandler.GetUserProfile(w, r)
+		case "OPTIONS":
+			w.Write([]byte("success"))
+		}
+	}
+	mux.Handle("/profile/", request.AuthMiddleware(http.HandlerFunc(profileRoutes)))
 
 	subFileRoutes := func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
