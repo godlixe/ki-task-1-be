@@ -7,6 +7,7 @@ type RegisterRequest struct {
 	Password    string `json:"password" binding:"required"`
 	Name        string `json:"name" binding:"required"`
 	PhoneNumber string `json:"phone_number" binding:"required"`
+	Email       string `json:"email" binding:"required"`
 	Gender      string `json:"gender" binding:"required,oneof=male female"`
 	Religion    string `json:"religion" binding:"required"`
 	Nationality string `json:"nationality" binding:"required"`
@@ -41,6 +42,7 @@ type GetProfileResponse struct {
 	Username    string `json:"username"`
 	Name        string `json:"name"`
 	PhoneNumber string `json:"phone_number"`
+	Email       string `json:"email"`
 	Gender      string `json:"gender" binding:"required"`
 	Religion    string `json:"religion"`
 	Nationality string `json:"nationality"`
@@ -53,6 +55,7 @@ type UpdateProfileRequest struct {
 	Username    string `json:"username" binding:"required"`
 	Name        string `json:"name" binding:"required"`
 	PhoneNumber string `json:"phone_number" binding:"required"`
+	Email       string `json:"email" binding:"required"`
 	Gender      string `json:"gender" binding:"required,oneof=male female"`
 	Religion    string `json:"religion" binding:"required"`
 	Nationality string `json:"nationality" binding:"required"`

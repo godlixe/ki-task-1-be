@@ -30,6 +30,7 @@ func (fr *userRepository) GetById(ctx context.Context, userId uint64) (*User, er
 		password,
 		name,
 		phone_number,
+		email,
 		gender,
 		religion,
 		nationality,
@@ -46,6 +47,7 @@ func (fr *userRepository) GetById(ctx context.Context, userId uint64) (*User, er
 		&user.Password,
 		&user.Name,
 		&user.PhoneNumber,
+		&user.Email,
 		&user.Gender,
 		&user.Religion,
 		&user.Nationality,
@@ -70,6 +72,7 @@ func (fr *userRepository) GetByUsername(ctx context.Context, username string) (*
 		password,
 		name,
 		phone_number,
+		email,
 		gender,
 		religion,
 		nationality,
@@ -86,6 +89,7 @@ func (fr *userRepository) GetByUsername(ctx context.Context, username string) (*
 		&user.Password,
 		&user.Name,
 		&user.PhoneNumber,
+		&user.Email,
 		&user.Gender,
 		&user.Religion,
 		&user.Nationality,
@@ -108,6 +112,7 @@ func (fr *userRepository) Create(ctx context.Context, user User) error {
 			password,
 			name,
 			phone_number,
+			email,
 			gender,
 			religion,
 			nationality,
@@ -116,7 +121,7 @@ func (fr *userRepository) Create(ctx context.Context, user User) error {
 			key_reference
 		)
 	VALUES (
-		$1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+		$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 	)
 	`
 	_, err := fr.db.GetConn().Exec(
@@ -126,6 +131,7 @@ func (fr *userRepository) Create(ctx context.Context, user User) error {
 		user.Password,
 		user.Name,
 		user.PhoneNumber,
+		user.Email,
 		user.Gender,
 		user.Religion,
 		user.Nationality,
@@ -147,12 +153,13 @@ func (fr *userRepository) Update(ctx context.Context, user User) error {
 			username = $1,
 			name = $2,
 			phone_number = $3,
-			gender = $4,
-			religion = $5,
-			nationality = $6,
-			address = $7,
-			birth_info = $8
-	WHERE id = $9
+			email = $4,
+			gender = $5,
+			religion = $6,
+			nationality = $7,
+			address = $8,
+			birth_info = $9
+	WHERE id = $10
 	`
 
 	_, err := fr.db.GetConn().Exec(
@@ -161,6 +168,7 @@ func (fr *userRepository) Update(ctx context.Context, user User) error {
 		user.Username,
 		user.Name,
 		user.PhoneNumber,
+		user.Email,
 		user.Gender,
 		user.Religion,
 		user.Nationality,
