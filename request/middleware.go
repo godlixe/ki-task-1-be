@@ -50,6 +50,9 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		ctx := context.WithValue(r.Context(), "user_id", claims["id"])
 
+		// save user token in context for cache purposes
+		ctx = context.WithValue(ctx, "user_token", token)
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

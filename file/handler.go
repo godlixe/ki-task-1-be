@@ -12,7 +12,7 @@ import (
 )
 
 type FileService interface {
-	listFiles(ctx context.Context, userID uint64, fileType string) ([]File, error)
+	listFiles(ctx context.Context, userID uint64, fileType string, targetUsername string) ([]File, error)
 	getFile(ctx context.Context, userID uint64, id uint64) (*File, error)
 	storeFile(
 		ctx context.Context,
@@ -132,11 +132,14 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListFiles(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("content-type", "application/json")
 	userId := uint64(r.Context().Value("user_id").(float64))
 
-	fileType := strings.TrimPrefix(r.URL.Path, "/files/")
+	targetUsername := strings.TrimPrefix(r.URL.Path, "/files/")
 
-	fileType, err := ValidateType(fileType)
+	qFileType := r.URL.Query().Get("type")
+
+	fileType, err := ValidateType(qFileType)
 	if err != nil {
 		response := helper.Response{
 			Message: err.Error(),
@@ -149,14 +152,32 @@ func (h *Handler) ListFiles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		w.Header().Set("content-type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write(jsonResponse)
 		return
 	}
 
-	res, err := h.fileService.listFiles(context.TODO(), userId, fileType)
+	res, err := h.fileService.listFiles(r.Context(), userId, fileType, targetUsername)
 	if err != nil {
+		// handle invalid auth
+
+		if err.Error() == "redirect" {
+			response := helper.Response{
+				Message: "unauthorized, please enter key at profile page",
+				Data:    nil,
+			}
+
+			jsonResponse, err := json.Marshal(response)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write(jsonResponse)
+			return
+		}
+
 		response := helper.Response{
 			Message: err.Error(),
 			Data:    nil,
@@ -183,7 +204,6 @@ func (h *Handler) ListFiles(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(jsonResponse)
 }
@@ -211,8 +231,28 @@ func (h *Handler) GetFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := h.fileService.getFile(context.TODO(), userId, id)
+	res, err := h.fileService.getFile(r.Context(), userId, id)
 	if err != nil {
+
+		// handle redirect
+		if err.Error() == "redirect" {
+			response := helper.Response{
+				Message: "unauthorized, please enter key at profile page",
+				Data:    nil,
+			}
+
+			jsonResponse, err := json.Marshal(response)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			w.Header().Set("content-type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write(jsonResponse)
+			return
+		}
+
 		response := helper.Response{
 			Message: err.Error(),
 			Data:    nil,

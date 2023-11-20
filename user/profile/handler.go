@@ -33,10 +33,28 @@ func (h *Handler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 	userId := uint64(r.Context().Value("user_id").(float64))
 	targetUsername := strings.TrimPrefix(r.URL.Path, "/profile/")
 
+	err = json.NewDecoder(r.Body).Decode(&request)
+	if err != nil {
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
+		return
+	}
+
 	request.UserID = userId
 	request.TargetUsername = targetUsername
 
-	getProfileResponse, err := h.profileService.getUserProfile(context.TODO(), request)
+	getProfileResponse, err := h.profileService.getUserProfile(r.Context(), request)
 	if err != nil {
 		response := helper.Response{
 			Message: err.Error(),

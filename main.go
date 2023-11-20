@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encryption/cache"
 	"encryption/database"
 	"encryption/file"
 	"encryption/guard"
@@ -52,6 +53,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	redisClient := cache.NewRedisClient()
+
 	userRepository := user.NewUserRepository(db)
 	fileRepository := file.NewFileRepository(db)
 	permissionRepository := permission.NewPermissionRepository(db)
@@ -69,13 +72,13 @@ func main() {
 
 	fileSystem := file.NewFileSystem()
 
-	fileService := file.NewFileService(fileSystem, fileRepository, *guard)
+	fileService := file.NewFileService(*redisClient, userService, fileSystem, fileRepository, *guard)
 	fileHandler := file.NewFileHandler(fileService)
 
-	permissionService := permission.NewPermissionService(permissionRepository, userRepository, *guard, &userService)
+	permissionService := permission.NewPermissionService(permissionRepository, userRepository, *guard, userService)
 	permissionHandler := permission.NewPermissionHandler(permissionService)
 
-	profileService := profile.NewProfileService(userRepository, permissionRepository, *guard)
+	profileService := profile.NewProfileService(*redisClient, userService, userRepository, permissionRepository, *guard)
 	profileHandler := profile.NewUserHandler(profileService)
 
 	mux := http.DefaultServeMux

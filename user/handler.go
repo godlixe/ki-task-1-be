@@ -19,10 +19,10 @@ type Handler struct {
 }
 
 func NewUserHandler(
-	us userService,
+	us UserService,
 ) Handler {
 	return Handler{
-		userService: &us,
+		userService: us,
 	}
 }
 

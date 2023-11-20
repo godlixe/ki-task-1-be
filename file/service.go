@@ -2,8 +2,11 @@ package file
 
 import (
 	"context"
+	"encryption/cache"
 	"encryption/guard"
+	"encryption/user"
 	"errors"
+	"fmt"
 	"io"
 	"mime/multipart"
 
@@ -33,18 +36,28 @@ type FileRepository interface {
 	Delete(ctx context.Context, id uint64) error
 }
 
+type UserService interface {
+	GetUserByUsername(context.Context, string) (*user.User, error)
+}
+
 type fileService struct {
+	redisClient    cache.RedisClient
+	userService    UserService
 	fileSystem     FileSystem
 	fileRepository FileRepository
 	guard          guard.Guard
 }
 
 func NewFileService(
+	rc cache.RedisClient,
+	us UserService,
 	fs FileSystem,
 	fr FileRepository,
 	g guard.Guard,
 ) fileService {
 	return fileService{
+		redisClient:    rc,
+		userService:    us,
 		fileSystem:     fs,
 		fileRepository: fr,
 		guard:          g,
@@ -53,9 +66,45 @@ func NewFileService(
 
 // ListFiles returns a list of file. Listed attributes are
 // id, filename, type, and filepath.
-func (fs *fileService) listFiles(ctx context.Context, userID uint64, fileType string) ([]File, error) {
+func (fs *fileService) listFiles(
+	ctx context.Context,
+	userID uint64,
+	fileType string,
+	targetUsername string,
+) ([]File, error) {
 	var err error
-	res, err := fs.fileRepository.List(ctx, userID, fileType)
+
+	token := ctx.Value("user_token").(string)
+
+	targetUser, err := fs.userService.GetUserByUsername(ctx, targetUsername)
+	if err != nil {
+		return nil, err
+	}
+
+	needAuth := true
+	if targetUser.ID == userID {
+		needAuth = false
+	}
+
+	permissionCache, err := fs.redisClient.Get(
+		ctx,
+		fmt.Sprintf("permission:%v_%v", token, targetUser.ID),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if needAuth &&
+		len(permissionCache) >= 0 &&
+		string(permissionCache) == "true" {
+		needAuth = false
+	}
+
+	if needAuth && targetUser.ID != userID {
+		return nil, errors.New("redirect")
+	}
+
+	res, err := fs.fileRepository.List(ctx, targetUser.ID, fileType)
 	if err != nil {
 		return nil, err
 	}
@@ -64,6 +113,8 @@ func (fs *fileService) listFiles(ctx context.Context, userID uint64, fileType st
 }
 
 func (fs *fileService) getFile(ctx context.Context, userID uint64, id uint64) (*File, error) {
+	token := ctx.Value("user_token").(string)
+
 	var err error
 	// get data from db
 	data, err := fs.fileRepository.Get(ctx, id)
@@ -71,9 +122,21 @@ func (fs *fileService) getFile(ctx context.Context, userID uint64, id uint64) (*
 		return nil, err
 	}
 
-	// return if userID doesnt match
+	// handle if userID doesnt match
 	if data.UserID != userID {
-		return nil, errors.New("unauthorized")
+		// check permission cache
+		permissionCache, err := fs.redisClient.Get(
+			ctx,
+			fmt.Sprintf("permission:%v_%v", token, data.UserID),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(permissionCache) <= 0 &&
+			string(permissionCache) != "true" {
+			return nil, errors.New("redirect")
+		}
 	}
 
 	// get file from filesystem

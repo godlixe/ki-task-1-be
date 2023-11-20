@@ -47,8 +47,8 @@ type userService struct {
 func NewFileService(
 	ur UserRepository,
 	g guard.Guard,
-) userService {
-	return userService{
+) *userService {
+	return &userService{
 		userRepository: ur,
 		guard:          g,
 	}
@@ -270,6 +270,28 @@ func (us *userService) GetUserWithRSA(
 	userID uint64,
 ) (*User, error) {
 	user, err := us.userRepository.GetUserWithRSA(ctx, userID)
+	if err != nil && err != pgx.ErrNoRows {
+		return nil, err
+	}
+
+	key, err := us.guard.GetKey(ctx, userKeyTable, user.KeyReference)
+	if err != nil {
+		return nil, err
+	}
+
+	err = user.DecryptUserData(&us.guard, key)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func (us *userService) GetUserByUsername(
+	ctx context.Context,
+	username string,
+) (*User, error) {
+	user, err := us.userRepository.GetByUsername(ctx, username)
 	if err != nil && err != pgx.ErrNoRows {
 		return nil, err
 	}
