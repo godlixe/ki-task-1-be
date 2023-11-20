@@ -37,7 +37,7 @@ type PermissionRepository interface {
 		direction int,
 	) ([]Notification, error)
 	GetNotificationById(context.Context, uint64) (*Notification, error)
-	GetLastestNotification(context.Context, uint64, uint64) (*Notification, error)
+	GetNotificationByUserId(context.Context, uint64, uint64) (*Notification, error)
 	CreateNotification(context.Context, Notification) error
 	UpdateNotification(context.Context, Notification) error
 	GetPermissionByUserId(context.Context, uint64, uint64) (*Permission, error)
@@ -115,16 +115,23 @@ func (ps *permissionService) RequestPermission(
 		return nil, errors.New("You already have permission to this user.")
 	}
 
-	existingNotification, err := ps.permissionRepository.GetLastestNotification(context.TODO(), request.UserID, targetUser.ID)
+	existingNotification, err := ps.permissionRepository.GetNotificationByUserId(context.TODO(), request.UserID, targetUser.ID)
 	if err != nil && err != pgx.ErrNoRows {
 		return nil, err
 	}
 
-	if existingNotification != nil && existingNotification.Status == 0 {
-		return nil, errors.New("Existing request is still in pending status. Please wait for approval.")
+	if existingNotification != nil {
+		if existingNotification.Status == 0 {
+			return nil, errors.New("Existing request is still in pending status. Please wait for approval.")
+		}
+
+		if existingNotification.Status == 1 {
+			existingNotification.Status = 0
+			ps.permissionRepository.UpdateNotification(ctx, *existingNotification)
+			return &RequestPermissionResponse{}, nil
+		}
 	}
 
-	// else scenario: request permission never been created or has been rejected before
 	notification := Notification{
 		SourceUserID: request.UserID,
 		TargetUserID: targetUser.ID,

@@ -127,7 +127,7 @@ func (pr *permissionRepository) GetNotificationById(ctx context.Context, notifca
 	return &notification, nil
 }
 
-func (pr *permissionRepository) GetLastestNotification(
+func (pr *permissionRepository) GetNotificationByUserId(
 	ctx context.Context,
 	sourceUserID uint64,
 	targetUserID uint64,
@@ -144,8 +144,6 @@ func (pr *permissionRepository) GetLastestNotification(
 		WHERE
 			source_user_id = $1 AND
 			target_user_id = $2
-		ORDER BY id DESC
-		LIMIT 1
 	`
 
 	err := pr.db.GetConn().QueryRow(
