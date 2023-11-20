@@ -81,23 +81,12 @@ func (ps *profileService) getUserProfile(
 		return nil, err
 	}
 
-	token := ctx.Value("user_token").(string)
-
-	// check cache for permission
-	permissionCache, err := ps.redisClient.Get(
-		ctx,
-		fmt.Sprintf("permission:%v_%v", token, targetUser.ID),
-	)
-	if err != nil {
-		return nil, err
-	}
-
 	needAuth := true
-	if len(permissionCache) >= 0 && string(permissionCache) == "true" {
-		needAuth = false
-	}
 
 	if request.UserID != targetUser.ID && needAuth {
+
+		token := ctx.Value("user_token").(string)
+
 		permission, err := ps.permissionRepository.GetPermissionByUserId(ctx, request.UserID, targetUser.ID)
 		if err != nil && err != pgx.ErrNoRows {
 			return nil, err
