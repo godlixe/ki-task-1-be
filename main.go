@@ -24,7 +24,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println(os.Getenv("DB_HOST"))
 	db, err := database.NewPostgresClient(
 		database.DatabaseCredentials{
 			Host:     os.Getenv("DB_HOST"),

@@ -183,7 +183,7 @@ func (ps *permissionService) RespondPermissionRequest(
 	if err != nil {
 		return &RespondPermissionRequestResponse{}, err
 	}
-	fmt.Println(sourceUser, targetUser)
+
 	// send rejection email message
 	if request.PermissionStatus == 1 {
 

@@ -63,8 +63,6 @@ func (pr *permissionRepository) GetNotifications(
 		stmt += fmt.Sprintf(" n.target_user_id = $%v", ctr)
 	}
 
-	fmt.Println(stmt)
-
 	args = append(args, userID)
 
 	rows, err := pr.db.GetConn().Query(ctx, stmt, args...)

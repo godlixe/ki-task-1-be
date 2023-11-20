@@ -258,7 +258,6 @@ func (g *Guard) ParsePublicKey(key string) (*rsa.PublicKey, error) {
 }
 
 func (g *Guard) ParsePrivateKey(key string) (*rsa.PrivateKey, error) {
-	fmt.Println(key)
 	block, _ := pem.Decode([]byte(key))
 	if block == nil {
 		return nil, errors.New("invalid private key")

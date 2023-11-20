@@ -2,7 +2,6 @@ package cache
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"time"
 
@@ -18,7 +17,6 @@ func NewRedisClient() *RedisClient {
 	host := os.Getenv("REDIS_HOST")
 	port := os.Getenv("REDIS_PORT")
 	pass := os.Getenv("REDIS_PASS")
-	fmt.Println(host + ":" + port)
 
 	client := redis.NewClient(&redis.Options{
 		Addr:     host + ":" + port,
