@@ -2,6 +2,7 @@ package file
 
 import (
 	"context"
+	"encoding/base64"
 	"encryption/cache"
 	"encryption/guard"
 	"encryption/user"
@@ -27,6 +28,7 @@ type Guard interface {
 type FileSystem interface {
 	Read(filepath string) ([]byte, error)
 	Write(filepath string, data []byte) error
+	NewDir(path string) error
 }
 
 type FileRepository interface {
@@ -34,6 +36,7 @@ type FileRepository interface {
 	Create(ctx context.Context, file File) error
 	Get(ctx context.Context, id uint64) (File, error)
 	Delete(ctx context.Context, id uint64) error
+	ListWithCredentials(ctx context.Context, userID uint64) ([]File, error)
 }
 
 type UserService interface {
@@ -234,6 +237,65 @@ func (fs *fileService) deleteFile(ctx context.Context, userID uint64, id uint64)
 	err = fs.fileRepository.Delete(ctx, id)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// duplicateUserFiles duplicates and encrypts a user's file with a new key
+func (fs *fileService) DuplicateUserFiles(
+	ctx context.Context,
+	dirName string,
+	targetUserID uint64,
+	newKey []byte,
+) error {
+	// get all files from a user
+	files, err := fs.fileRepository.ListWithCredentials(ctx, targetUserID)
+	if err != nil {
+		return err
+	}
+
+	var fileKeyReferences [][]byte
+
+	for _, file := range files {
+		fileKeyReferences = append(fileKeyReferences, file.KeyReference)
+	}
+
+	keys, err := fs.guard.GetMultipleKeys(ctx, fileTable, fileKeyReferences)
+	if err != nil {
+		return err
+	}
+
+	// create a new directory for the files if it doesnt exist
+	err = fs.fileSystem.NewDir("files/" + dirName)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		file.Key = keys[base64.StdEncoding.EncodeToString(file.KeyReference)]
+
+		fileContent, err := fs.fileSystem.Read(file.Filepath)
+		if err != nil {
+			return err
+		}
+
+		decryptedContent, err := fs.guard.Decrypt(file.Key.PlainKey, fileContent)
+		if err != nil {
+			return err
+		}
+
+		// encrypt fileContent with new key
+		encryptedContent, err := fs.guard.Encrypt(newKey, decryptedContent)
+		if err != nil {
+			return err
+		}
+
+		err = fs.fileSystem.Write("files/"+dirName+file.Filename, encryptedContent)
+		if err != nil {
+			return err
+		}
+
 	}
 
 	return nil

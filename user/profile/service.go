@@ -127,7 +127,6 @@ func (ps *profileService) getUserProfile(
 		}
 
 		// set cache for permission
-
 		err = ps.redisClient.Set(ctx,
 			fmt.Sprintf("permission:%v_%v", token, targetUser.ID),
 			"true",

@@ -125,6 +125,51 @@ func (fr *fileRepository) List(ctx context.Context, userID uint64, fileType stri
 	return files, nil
 }
 
+func (fr *fileRepository) ListWithCredentials(ctx context.Context, userID uint64) ([]File, error) {
+	var files []File
+	var err error
+
+	stmt := `
+		SELECT
+				id,
+				user_id,
+				filename,
+				type,
+				filepath,
+				key_reference
+		 FROM files 
+		 WHERE user_id = $1
+		 `
+
+	rows, err := fr.db.GetConn().Query(ctx, stmt, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var f File
+		err := rows.Scan(
+			&f.ID,
+			&f.UserID,
+			&f.Filename,
+			&f.Type,
+			&f.Filepath,
+			&f.KeyReference,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		files = append(files, f)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return files, nil
+}
+
 func (fr *fileRepository) Delete(ctx context.Context, id uint64) error {
 	var err error
 

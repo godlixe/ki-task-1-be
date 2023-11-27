@@ -20,6 +20,7 @@ import (
 
 type Repository interface {
 	GetKey(ctx context.Context, table string, id uint64) (Key, error)
+	GetMultipleKeys(ctx context.Context, table string, ids []uint64) ([]Key, error)
 	StoreKey(ctx context.Context, table string, key Key) (Key, error)
 }
 
@@ -58,6 +59,45 @@ func (g *Guard) GetKey(ctx context.Context, table string, metadata []byte) (Key,
 	}
 
 	return key, nil
+}
+
+func (g *Guard) GetMultipleKeys(ctx context.Context, table string, metadatas [][]byte) (map[string]Key, error) {
+	var err error
+	var keyRefs []uint64
+	for _, metadata := range metadatas {
+		keyRef, err := g.Decrypt(g.MetadataKey, metadata)
+		if err != nil {
+			return nil, err
+		}
+		keyRefs = append(keyRefs, binary.BigEndian.Uint64(keyRef))
+	}
+
+	keys, err := g.repository.GetMultipleKeys(ctx, table, keyRefs)
+	if err != nil {
+		return nil, err
+	}
+
+	var IDKey map[uint64]Key = make(map[uint64]Key)
+
+	for _, data := range keys {
+		IDKey[data.id] = data
+	}
+
+	// referencedKeys is a map with base64 string of encrypted keyReference
+	// as key and original Key as value.
+	var referencedKeys map[string]Key = make(map[string]Key)
+
+	for _, metadata := range metadatas {
+		keyRef, err := g.Decrypt(g.MetadataKey, metadata)
+		if err != nil {
+			return nil, err
+		}
+
+		originalKeyID := binary.BigEndian.Uint64(keyRef)
+		referencedKeys[base64.StdEncoding.EncodeToString(metadata)] = IDKey[originalKeyID]
+	}
+
+	return referencedKeys, nil
 }
 
 // StoreKey returns key metadata

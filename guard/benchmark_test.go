@@ -33,6 +33,12 @@ func (m *MockGuardRepo) StoreKey(ctx context.Context, table string, key Key) (Ke
 	return Key{}, errors.New("invalid mode")
 }
 
+func (m *MockGuardRepo) GetMultipleKeys(ctx context.Context, table string, ids []uint64) ([]Key, error) {
+	var keys []Key
+	return keys, nil
+
+}
+
 func BenchmarkAESText(b *testing.B) {
 	guardRepo := MockGuardRepo{GuardMode: 1}
 	guard := NewGuard(1, []byte("12345678912345678912345678900000"), &guardRepo)

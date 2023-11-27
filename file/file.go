@@ -1,6 +1,9 @@
 package file
 
-import "errors"
+import (
+	"encryption/guard"
+	"errors"
+)
 
 // File represents a file entity.
 type File struct {
@@ -17,6 +20,9 @@ type File struct {
 
 	// File content.
 	Content []byte
+
+	// Key represents the file's key
+	Key guard.Key `json:"-"`
 }
 
 // Types for File.

@@ -49,6 +49,15 @@ type UserRepository interface {
 	GetByUsername(context.Context, string) (*user.User, error)
 }
 
+type FileService interface {
+	DuplicateUserFiles(
+		ctx context.Context,
+		dirName string,
+		targetUserID uint64,
+		newKey []byte,
+	) error
+}
+
 type UserService interface {
 	GetUserWithRSA(
 		ctx context.Context,
@@ -58,6 +67,7 @@ type UserService interface {
 
 type permissionService struct {
 	permissionRepository PermissionRepository
+	fileService          FileService
 	userRepository       UserRepository
 	guard                guard.Guard
 	userService          UserService
@@ -65,12 +75,14 @@ type permissionService struct {
 
 func NewPermissionService(
 	pr PermissionRepository,
+	fs FileService,
 	ur UserRepository,
 	g guard.Guard,
 	us UserService,
 ) *permissionService {
 	return &permissionService{
 		permissionRepository: pr,
+		fileService:          fs,
 		userRepository:       ur,
 		userService:          us,
 		guard:                g,
@@ -207,6 +219,16 @@ func (ps *permissionService) RespondPermissionRequest(
 		return &RespondPermissionRequestResponse{}, err
 	}
 
+	err = ps.fileService.DuplicateUserFiles(
+		ctx,
+		fmt.Sprintf("%v_%v", sourceUser.ID, targetUser.ID),
+		targetUser.ID,
+		[]byte(symmetricKey),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	// encrypt symmetric key with source user's public key
 	publicKey, err := ps.guard.ParsePublicKey(sourceUser.PublicKey)
 	if err != nil {
@@ -225,7 +247,6 @@ func (ps *permissionService) RespondPermissionRequest(
 	}
 
 	// acceptance email message
-
 	err = helper.SendMail(
 		sourceUser.Email,
 		"Permission Key For "+targetUser.Username,
