@@ -2,15 +2,18 @@ package file
 
 import (
 	"context"
+	"encoding/json"
 	"encryption/cache"
 	"encryption/guard"
 	"encryption/user"
+	"encryption/user/permission"
 	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 const fileTable = "keys"
@@ -40,15 +43,21 @@ type UserService interface {
 	GetUserByUsername(context.Context, string) (*user.User, error)
 }
 
+type PermissionRepository interface {
+	GetPermissionByUserId(ctx context.Context, sourceUserID uint64, targetUserID uint64) (*permission.Permission, error)
+}
+
 type fileService struct {
-	redisClient    cache.RedisClient
-	userService    UserService
-	fileSystem     FileSystem
-	fileRepository FileRepository
-	guard          guard.Guard
+	permissionRepository PermissionRepository
+	redisClient          cache.RedisClient
+	userService          UserService
+	fileSystem           FileSystem
+	fileRepository       FileRepository
+	guard                guard.Guard
 }
 
 func NewFileService(
+	pr PermissionRepository,
 	rc cache.RedisClient,
 	us UserService,
 	fs FileSystem,
@@ -56,11 +65,12 @@ func NewFileService(
 	g guard.Guard,
 ) fileService {
 	return fileService{
-		redisClient:    rc,
-		userService:    us,
-		fileSystem:     fs,
-		fileRepository: fr,
-		guard:          g,
+		permissionRepository: pr,
+		redisClient:          rc,
+		userService:          us,
+		fileSystem:           fs,
+		fileRepository:       fr,
+		guard:                g,
 	}
 }
 
@@ -74,7 +84,7 @@ func (fs *fileService) listFiles(
 ) ([]File, error) {
 	var err error
 
-	token := ctx.Value("user_token").(string)
+	// token := ctx.Value("user_token").(string)
 
 	targetUser, err := fs.userService.GetUserByUsername(ctx, targetUsername)
 	if err != nil {
@@ -86,18 +96,39 @@ func (fs *fileService) listFiles(
 		needAuth = false
 	}
 
-	permissionCache, err := fs.redisClient.Get(
+	// permissionCache, err := fs.redisClient.Get(
+	// 	ctx,
+	// 	fmt.Sprintf("permission:%v_%v", token, targetUser.ID),
+	// )
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// return from json if permission exists
+	permission, err := fs.permissionRepository.GetPermissionByUserId(
 		ctx,
-		fmt.Sprintf("permission:%v_%v", token, targetUser.ID),
+		userID,
+		targetUser.ID,
 	)
-	if err != nil {
+	if err != nil && err != pgx.ErrNoRows {
 		return nil, err
+	} else if err == pgx.ErrNoRows {
+		return nil, errors.New("no permission")
 	}
 
-	if needAuth &&
-		len(permissionCache) >= 0 &&
-		string(permissionCache) == "true" {
-		needAuth = false
+	if permission != nil && needAuth {
+		// get file.json
+		rawList, err := fs.fileSystem.Read(fmt.Sprintf("files/%v_%v/file.json", userID, targetUser.ID))
+		if err != nil {
+			return nil, err
+		}
+		var fileList []File
+		err = json.Unmarshal(rawList, &fileList)
+		if err != nil {
+			return nil, err
+		}
+
+		return fileList, err
 	}
 
 	if needAuth && targetUser.ID != userID {

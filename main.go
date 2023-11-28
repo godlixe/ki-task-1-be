@@ -71,7 +71,7 @@ func main() {
 
 	fileSystem := file.NewFileSystem()
 
-	fileService := file.NewFileService(*redisClient, userService, fileSystem, fileRepository, *guard)
+	fileService := file.NewFileService(permissionRepository, *redisClient, userService, fileSystem, fileRepository, *guard)
 	fileHandler := file.NewFileHandler(fileService)
 
 	permissionService := permission.NewPermissionService(permissionRepository, userRepository, *guard, userService)

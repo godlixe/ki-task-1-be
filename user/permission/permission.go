@@ -1,6 +1,9 @@
 package permission
 
-import "encryption/user"
+import (
+	"encryption/file"
+	"encryption/user"
+)
 
 // Permission defines the existence of
 // a permission for source user to view
@@ -34,4 +37,16 @@ type Notification struct {
 
 type RespondRequest struct {
 	Status int `json:"status"`
+}
+
+// FilePermission defines a permission to file
+// relationship.
+type FilePermission struct {
+	ID           uint64 `json:"id"`
+	Filepath     string `json:"filepath"`
+	PermissionID uint64
+	Permission   Permission
+
+	FileID uint64
+	File   file.File `json:"file"`
 }
