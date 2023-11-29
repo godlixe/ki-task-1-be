@@ -5,6 +5,7 @@ import "errors"
 type RequestPermissionRequest struct {
 	UserID         uint64
 	TargetUsername string
+	FileID         uint64
 }
 
 type RequestPermissionResponse struct {

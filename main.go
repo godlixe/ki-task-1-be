@@ -7,6 +7,8 @@ import (
 	"encryption/guard"
 	"encryption/request"
 	"encryption/user"
+	"encryption/user/decrypt"
+	filepermission "encryption/user/file_permission"
 	"encryption/user/permission"
 	"encryption/user/profile"
 	"fmt"
@@ -57,6 +59,7 @@ func main() {
 	userRepository := user.NewUserRepository(db)
 	fileRepository := file.NewFileRepository(db)
 	permissionRepository := permission.NewPermissionRepository(db)
+	filePermissionRepository := filepermission.NewPermissionRepository(db)
 	guardRepository := guard.NewGuardRepository(guardDB)
 
 	guardMode, _ := strconv.Atoi(os.Getenv("GUARD_MODE"))
@@ -71,11 +74,18 @@ func main() {
 
 	fileSystem := file.NewFileSystem()
 
-	fileService := file.NewFileService(permissionRepository, *redisClient, userService, fileSystem, fileRepository, *guard)
-	fileHandler := file.NewFileHandler(fileService)
+	decryptService := decrypt.NewDecryptService(
+		fileRepository,
+		fileSystem,
+		*redisClient,
+		guard,
+	)
 
-	permissionService := permission.NewPermissionService(permissionRepository, userRepository, *guard, userService)
+	permissionService := permission.NewPermissionService(decryptService, fileSystem, filePermissionRepository, permissionRepository, userRepository, *guard, userService)
 	permissionHandler := permission.NewPermissionHandler(permissionService)
+
+	fileService := file.NewFileService(filePermissionRepository, permissionService, *redisClient, userService, fileSystem, fileRepository, *guard)
+	fileHandler := file.NewFileHandler(fileService)
 
 	profileService := profile.NewProfileService(*redisClient, userService, userRepository, permissionRepository, *guard)
 	profileHandler := profile.NewUserHandler(profileService)

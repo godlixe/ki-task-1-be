@@ -37,7 +37,8 @@ func (pr *permissionRepository) GetNotifications(
 				u1.username,
 				n.target_user_id,
 				u2.username,
-				n.status
+				n.status,
+				n.file_id
 		 FROM 
 		 	notifications n
 		 LEFT JOIN
@@ -80,6 +81,7 @@ func (pr *permissionRepository) GetNotifications(
 			&n.TargetUserID,
 			&n.TargetUser.Username,
 			&n.Status,
+			&n.FileID,
 		)
 		if err != nil {
 			return nil, err
@@ -102,7 +104,8 @@ func (pr *permissionRepository) GetNotificationById(ctx context.Context, notifca
 			id,
 			source_user_id,
 			target_user_id,
-			status
+			status,
+			file_id
 		FROM notifications
 		WHERE
 			id = $1
@@ -117,6 +120,7 @@ func (pr *permissionRepository) GetNotificationById(ctx context.Context, notifca
 		&notification.SourceUserID,
 		&notification.TargetUserID,
 		&notification.Status,
+		&notification.FileID,
 	)
 	if err != nil {
 		return nil, err
@@ -137,7 +141,8 @@ func (pr *permissionRepository) GetNotificationByUserId(
 			id,
 			source_user_id,
 			target_user_id,
-			status
+			status,
+			file_id
 		FROM notifications
 		WHERE
 			source_user_id = $1 AND
@@ -154,6 +159,7 @@ func (pr *permissionRepository) GetNotificationByUserId(
 		&notification.SourceUserID,
 		&notification.TargetUserID,
 		&notification.Status,
+		&notification.FileID,
 	)
 	if err != nil {
 		return nil, err
@@ -168,12 +174,14 @@ func (pr *permissionRepository) CreateNotification(ctx context.Context, notifica
 			notifications (
 				source_user_id,
 				target_user_id,
+				file_id,
 				status
 			)
 		VALUES (
 			$1,
 			$2,
-			$3
+			$3,
+			$4
 		)
 	`
 
@@ -182,6 +190,7 @@ func (pr *permissionRepository) CreateNotification(ctx context.Context, notifica
 		stmt,
 		notification.SourceUserID,
 		notification.TargetUserID,
+		notification.FileID,
 		notification.Status,
 	)
 	if err != nil {
@@ -196,7 +205,7 @@ func (pr *permissionRepository) UpdateNotification(ctx context.Context, notifica
 		UPDATE
 			notifications SET
 				source_user_id = $2,
-				target_user_id = $3 ,
+				target_user_id = $3,
 				status = $4
 		WHERE id = $1
 	`
@@ -295,7 +304,8 @@ func (pr *permissionRepository) GetNotificationByID(
 				n.id, 
 				n.source_user_id,
 				n.target_user_id,
-				n.status
+				n.status,
+				n.file_id
 		 FROM 
 		 	notifications n
 		 WHERE id = $1
@@ -306,6 +316,7 @@ func (pr *permissionRepository) GetNotificationByID(
 		&notification.SourceUserID,
 		&notification.TargetUserID,
 		&notification.Status,
+		&notification.FileID,
 	)
 	if err != nil {
 		return Notification{}, err

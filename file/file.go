@@ -1,6 +1,8 @@
 package file
 
-import "errors"
+import (
+	"errors"
+)
 
 // File represents a file entity.
 type File struct {

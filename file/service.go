@@ -2,18 +2,16 @@ package file
 
 import (
 	"context"
-	"encoding/json"
 	"encryption/cache"
 	"encryption/guard"
 	"encryption/user"
-	"encryption/user/permission"
+	filepermission "encryption/user/file_permission"
 	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 const fileTable = "keys"
@@ -43,21 +41,51 @@ type UserService interface {
 	GetUserByUsername(context.Context, string) (*user.User, error)
 }
 
-type PermissionRepository interface {
-	GetPermissionByUserId(ctx context.Context, sourceUserID uint64, targetUserID uint64) (*permission.Permission, error)
+type PermissionService interface {
+	HasPermission(
+		ctx context.Context,
+		sourceUserID uint64,
+		targetUserID uint64,
+	) (bool, error)
+}
+
+type FilePermissionRepository interface {
+	GetByPermissionID(
+		ctx context.Context,
+		permissionID uint64,
+	) ([]filepermission.FilePermission, error)
+
+	GetByID(
+		ctx context.Context,
+		filePermissionID uint64,
+	) (filepermission.FilePermission, error)
+
+	CreateFilePermission(
+		ctx context.Context,
+		filePermission filepermission.FilePermission,
+	) error
+
+	GetByUserFilePermission(
+		ctx context.Context,
+		sourceUserID uint64,
+		targetUserID uint64,
+		fileID uint64,
+	) (filepermission.FilePermission, error)
 }
 
 type fileService struct {
-	permissionRepository PermissionRepository
-	redisClient          cache.RedisClient
-	userService          UserService
-	fileSystem           FileSystem
-	fileRepository       FileRepository
-	guard                guard.Guard
+	filePermissionRepository FilePermissionRepository
+	permissionService        PermissionService
+	redisClient              cache.RedisClient
+	userService              UserService
+	fileSystem               FileSystem
+	fileRepository           FileRepository
+	guard                    guard.Guard
 }
 
 func NewFileService(
-	pr PermissionRepository,
+	fpr FilePermissionRepository,
+	ps PermissionService,
 	rc cache.RedisClient,
 	us UserService,
 	fs FileSystem,
@@ -65,12 +93,13 @@ func NewFileService(
 	g guard.Guard,
 ) fileService {
 	return fileService{
-		permissionRepository: pr,
-		redisClient:          rc,
-		userService:          us,
-		fileSystem:           fs,
-		fileRepository:       fr,
-		guard:                g,
+		filePermissionRepository: fpr,
+		permissionService:        ps,
+		redisClient:              rc,
+		userService:              us,
+		fileSystem:               fs,
+		fileRepository:           fr,
+		guard:                    g,
 	}
 }
 
@@ -91,11 +120,6 @@ func (fs *fileService) listFiles(
 		return nil, err
 	}
 
-	needAuth := true
-	if targetUser.ID == userID {
-		needAuth = false
-	}
-
 	// permissionCache, err := fs.redisClient.Get(
 	// 	ctx,
 	// 	fmt.Sprintf("permission:%v_%v", token, targetUser.ID),
@@ -105,35 +129,6 @@ func (fs *fileService) listFiles(
 	// }
 
 	// return from json if permission exists
-	permission, err := fs.permissionRepository.GetPermissionByUserId(
-		ctx,
-		userID,
-		targetUser.ID,
-	)
-	if err != nil && err != pgx.ErrNoRows {
-		return nil, err
-	} else if err == pgx.ErrNoRows {
-		return nil, errors.New("no permission")
-	}
-
-	if permission != nil && needAuth {
-		// get file.json
-		rawList, err := fs.fileSystem.Read(fmt.Sprintf("files/%v_%v/file.json", userID, targetUser.ID))
-		if err != nil {
-			return nil, err
-		}
-		var fileList []File
-		err = json.Unmarshal(rawList, &fileList)
-		if err != nil {
-			return nil, err
-		}
-
-		return fileList, err
-	}
-
-	if needAuth && targetUser.ID != userID {
-		return nil, errors.New("redirect")
-	}
 
 	res, err := fs.fileRepository.List(ctx, targetUser.ID, fileType)
 	if err != nil {
@@ -153,9 +148,10 @@ func (fs *fileService) getFile(ctx context.Context, userID uint64, id uint64) (*
 		return nil, err
 	}
 
-	// handle if userID doesnt match
+	// handle if userID is another user
 	if data.UserID != userID {
-		// check permission cache
+
+		// check cache
 		permissionCache, err := fs.redisClient.Get(
 			ctx,
 			fmt.Sprintf("permission:%v_%v", token, data.UserID),
@@ -168,6 +164,48 @@ func (fs *fileService) getFile(ctx context.Context, userID uint64, id uint64) (*
 			string(permissionCache) != "true" {
 			return nil, errors.New("redirect")
 		}
+		// check if user has file permission
+		filePermission, err := fs.filePermissionRepository.GetByUserFilePermission(
+			ctx,
+			userID,
+			data.UserID,
+			data.ID,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if filePermission.ID == 0 {
+			return nil, errors.New("permission does not exist")
+		}
+
+		// get symmetric key from permission
+		// Get key from db
+		symmetricKeyKey, err := fs.guard.GetKey(ctx, "permission_keys", filePermission.Permission.KeyReference)
+		if err != nil {
+			return nil, err
+		}
+
+		// decrypt file to res
+		symmetricKey, err := fs.guard.Decrypt(symmetricKeyKey.PlainKey, filePermission.Permission.Key)
+		if err != nil {
+			return nil, err
+		}
+
+		fileContent, err := fs.fileSystem.Read(filePermission.Filepath)
+		if err != nil {
+			return nil, err
+		}
+
+		res, err := fs.guard.Decrypt(symmetricKey, fileContent)
+		if err != nil {
+			return nil, err
+		}
+
+		return &File{
+			Filename: data.Filename,
+			Content:  res,
+		}, nil
 	}
 
 	// get file from filesystem

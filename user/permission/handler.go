@@ -103,12 +103,34 @@ func (h *Handler) RequestPermission(w http.ResponseWriter, r *http.Request) {
 		request RequestPermissionRequest
 		err     error
 	)
+
+	qFileID := r.URL.Query().Get("file_id")
+	fileID, err := strconv.ParseUint(qFileID, 10, 64)
+	if err != nil {
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
+		return
+	}
+
 	userID := uint64(r.Context().Value("user_id").(float64))
 	username := strings.TrimPrefix(r.URL.Path, "/request/")
 
 	request = RequestPermissionRequest{
 		UserID:         userID,
 		TargetUsername: username,
+		FileID:         fileID,
 	}
 
 	_, err = h.permissionService.RequestPermission(context.Background(), request)
@@ -220,7 +242,7 @@ func (h *Handler) RespondPermissionRequest(w http.ResponseWriter, r *http.Reques
 	request.UserID = userID
 	request.NotificationID = notificationID
 
-	serviceResponse, err := h.permissionService.RespondPermissionRequest(context.Background(), request)
+	serviceResponse, err := h.permissionService.RespondPermissionRequest(r.Context(), request)
 
 	if err != nil {
 		response := helper.Response{

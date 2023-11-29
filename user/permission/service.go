@@ -3,14 +3,18 @@ package permission
 import (
 	"context"
 	"encoding/base64"
+	"encryption/file"
 	"encryption/guard"
 	"encryption/helper"
 	"encryption/user"
+	filepermission "encryption/user/file_permission"
 	"errors"
 	"fmt"
+	"os"
 
 	"crypto/rsa"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -49,6 +53,30 @@ type UserRepository interface {
 	GetByUsername(context.Context, string) (*user.User, error)
 }
 
+type FilePermissionRepository interface {
+	GetByPermissionID(
+		ctx context.Context,
+		permissionID uint64,
+	) ([]filepermission.FilePermission, error)
+
+	GetByID(
+		ctx context.Context,
+		filePermissionID uint64,
+	) (filepermission.FilePermission, error)
+
+	CreateFilePermission(
+		ctx context.Context,
+		filePermission filepermission.FilePermission,
+	) error
+
+	GetByUserFilePermission(
+		ctx context.Context,
+		sourceUserID uint64,
+		targetUserID uint64,
+		fileID uint64,
+	) (filepermission.FilePermission, error)
+}
+
 type UserService interface {
 	GetUserWithRSA(
 		ctx context.Context,
@@ -56,24 +84,47 @@ type UserService interface {
 	) (*user.User, error)
 }
 
+type FileSystem interface {
+	Read(path string) ([]byte, error)
+	Write(path string, data []byte) error
+	NewDir(path string) error
+}
+
+type DecryptService interface {
+	GetFile(
+		ctx context.Context,
+		userID uint64,
+		id uint64,
+	) (*file.File, error)
+}
+
 type permissionService struct {
-	permissionRepository PermissionRepository
-	userRepository       UserRepository
-	guard                guard.Guard
-	userService          UserService
+	decryptService           DecryptService
+	fileSystem               FileSystem
+	filePermissionRepository FilePermissionRepository
+	permissionRepository     PermissionRepository
+	userRepository           UserRepository
+	guard                    guard.Guard
+	userService              UserService
 }
 
 func NewPermissionService(
+	ds DecryptService,
+	fs FileSystem,
+	fpr FilePermissionRepository,
 	pr PermissionRepository,
 	ur UserRepository,
 	g guard.Guard,
 	us UserService,
 ) *permissionService {
 	return &permissionService{
-		permissionRepository: pr,
-		userRepository:       ur,
-		userService:          us,
-		guard:                g,
+		decryptService:           ds,
+		fileSystem:               fs,
+		filePermissionRepository: fpr,
+		permissionRepository:     pr,
+		userRepository:           ur,
+		userService:              us,
+		guard:                    g,
 	}
 }
 
@@ -91,6 +142,27 @@ func (ps *permissionService) GetNotifications(
 	)
 }
 
+func (ps *permissionService) HasPermission(
+	ctx context.Context,
+	sourceUserID uint64,
+	targetUserID uint64,
+) (bool, error) {
+	if targetUserID == sourceUserID {
+		return true, nil
+	}
+
+	_, err := ps.permissionRepository.GetPermissionByUserId(
+		ctx, sourceUserID, targetUserID,
+	)
+	if err != nil && err != pgx.ErrNoRows {
+		return false, err
+	} else if err == pgx.ErrNoRows {
+		return false, nil
+	}
+
+	return true, nil
+}
+
 func (ps *permissionService) RequestPermission(
 	ctx context.Context,
 	request RequestPermissionRequest,
@@ -103,16 +175,17 @@ func (ps *permissionService) RequestPermission(
 		return nil, err
 	}
 
+	fmt.Println(targetUser.ID, request.UserID, request.TargetUsername)
 	if targetUser.ID == request.UserID {
 		return nil, errors.New("Request failed. You cannot make request to yourself.")
 	}
 
-	permission, err := ps.permissionRepository.GetPermissionByUserId(ctx, request.UserID, targetUser.ID)
+	permission, err := ps.filePermissionRepository.GetByUserFilePermission(ctx, request.UserID, targetUser.ID, request.FileID)
 	if err != nil && err != pgx.ErrNoRows {
 		return nil, err
 	}
-	if permission != nil {
-		return nil, errors.New("You already have permission to this user.")
+	if permission.ID != 0 {
+		return nil, errors.New("You already have permission to this user's file.")
 	}
 
 	existingNotification, err := ps.permissionRepository.GetNotificationByUserId(context.TODO(), request.UserID, targetUser.ID)
@@ -135,6 +208,7 @@ func (ps *permissionService) RequestPermission(
 	notification := Notification{
 		SourceUserID: request.UserID,
 		TargetUserID: targetUser.ID,
+		FileID:       request.FileID,
 		Status:       0,
 	}
 
@@ -201,35 +275,130 @@ func (ps *permissionService) RespondPermissionRequest(
 		}, nil
 	}
 
-	// create symmetric key
-	symmetricKey, err := ps.guard.GenerateStringKey()
-	if err != nil {
-		return &RespondPermissionRequestResponse{}, err
+	firstTime := true
+
+	var permission *Permission
+	// check if permission exists
+	permission, err = ps.permissionRepository.GetPermissionByUserId(
+		ctx,
+		sourceUser.ID,
+		targetUser.ID,
+	)
+	if err != nil && err != pgx.ErrNoRows {
+		return nil, err
 	}
 
-	// encrypt symmetric key with source user's public key
-	publicKey, err := ps.guard.ParsePublicKey(sourceUser.PublicKey)
-	if err != nil {
-		return &RespondPermissionRequestResponse{}, err
+	var symmetricKey []byte
+	var encryptedSymmetricKey []byte
+
+	if permission != nil {
+		firstTime = false
+
+		// decrypt symmetric key if permission exists
+
+		key, err := ps.guard.GetKey(ctx, permissionTable, permission.KeyReference)
+		if err != nil {
+			return nil, err
+		}
+
+		// decrypt file to res
+		symmetricKey, err = ps.guard.Decrypt(key.PlainKey, permission.Key)
+		if err != nil {
+			return nil, err
+		}
+
+		fmt.Println(string(symmetricKey), symmetricKey, "got")
+
+		// create permission if not exist
+	} else if permission == nil {
+
+		// create symmetric key
+		stringSymmetricKey, err := ps.guard.GenerateStringKey()
+		if err != nil {
+			return &RespondPermissionRequestResponse{}, err
+		}
+
+		symmetricKey = []byte(stringSymmetricKey)
+
+		// encrypt symmetric key with source user's public key
+		publicKey, err := ps.guard.ParsePublicKey(sourceUser.PublicKey)
+		if err != nil {
+			return &RespondPermissionRequestResponse{}, err
+		}
+
+		// encrypt with public key
+		encryptedSymmetricKey, err = ps.guard.EncryptRSA(publicKey, symmetricKey)
+		if err != nil {
+			return &RespondPermissionRequestResponse{}, err
+		}
+
+		err = ps.CreatePermission(ctx, sourceUser.ID, targetUser.ID, symmetricKey)
+		if err != nil {
+			return &RespondPermissionRequestResponse{}, err
+		}
+
+		permission, err = ps.permissionRepository.GetPermissionByUserId(
+			ctx,
+			sourceUser.ID,
+			targetUser.ID,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		fmt.Println(string(symmetricKey), symmetricKey, "newly made")
 	}
 
-	// encrypt with public key
-	encryptedSymmetricKey, err := ps.guard.EncryptRSA(publicKey, []byte(symmetricKey))
+	// get original file
+	originalFile, err := ps.decryptService.GetFile(
+		ctx,
+		targetUser.ID,
+		notification.FileID,
+	)
 	if err != nil {
-		return &RespondPermissionRequestResponse{}, err
+		return nil, err
+	}
+	fmt.Println(string(symmetricKey), symmetricKey, "final")
+
+	// encrypt original file with symmetric key
+	encryptedFileContent, err := ps.guard.Encrypt(symmetricKey, originalFile.Content)
+	if err != nil {
+		return nil, err
 	}
 
-	err = ps.CreatePermission(ctx, sourceUser.ID, targetUser.ID, []byte(symmetricKey))
+	dirName := fmt.Sprintf("%v_%v", sourceUser.ID, targetUser.ID)
+	err = ps.fileSystem.NewDir("files/" + dirName)
+	if err != nil && errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+
+	newFileName := uuid.New().String()
+
+	// save file to new directory
+	err = ps.fileSystem.Write("files/"+dirName+"/"+newFileName, encryptedFileContent)
 	if err != nil {
-		return &RespondPermissionRequestResponse{}, err
+		return nil, err
+	}
+
+	// create file permission
+	err = ps.filePermissionRepository.CreateFilePermission(
+		ctx,
+		filepermission.FilePermission{
+			Filepath:     "files/" + dirName + "/" + newFileName,
+			PermissionID: permission.ID,
+			FileID:       notification.FileID,
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	// acceptance email message
-
-	err = helper.SendMail(
-		sourceUser.Email,
-		"Permission Key For "+targetUser.Username,
-		fmt.Sprintf(`
+	if firstTime {
+		err = helper.SendMail(
+			sourceUser.Email,
+			"Permission Key For "+targetUser.Username,
+			fmt.Sprintf(`
 		<html>
 		Hi %v, your request to view user %v's profile has been approved. </br>
 		Below is the encrypted key that can be used to view user %v's profile. </br>
@@ -241,13 +410,14 @@ func (ps *permissionService) RespondPermissionRequest(
 		%v
 		</html>
 		`, sourceUser.Username,
-			targetUser.Username,
-			targetUser.Username,
-			base64.StdEncoding.EncodeToString(encryptedSymmetricKey),
-		),
-	)
-	if err != nil {
-		return nil, err
+				targetUser.Username,
+				targetUser.Username,
+				base64.StdEncoding.EncodeToString(encryptedSymmetricKey),
+			),
+		)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &RespondPermissionRequestResponse{

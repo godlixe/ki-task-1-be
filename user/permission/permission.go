@@ -28,6 +28,9 @@ type Notification struct {
 	TargetUserID uint64    `json:"target_user_id"`
 	TargetUser   user.User `json:"target_user"`
 
+	FileID uint64 `json:"file_id"`
+	File   file.File
+
 	// Status defines the status of the notification
 	// - 0 : Awaiting for response.
 	// - 1 : Request rejected.
@@ -37,16 +40,4 @@ type Notification struct {
 
 type RespondRequest struct {
 	Status int `json:"status"`
-}
-
-// FilePermission defines a permission to file
-// relationship.
-type FilePermission struct {
-	ID           uint64 `json:"id"`
-	Filepath     string `json:"filepath"`
-	PermissionID uint64
-	Permission   Permission
-
-	FileID uint64
-	File   file.File `json:"file"`
 }
