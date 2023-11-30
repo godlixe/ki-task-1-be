@@ -81,7 +81,7 @@ func main() {
 		guard,
 	)
 
-	permissionService := permission.NewPermissionService(decryptService, fileSystem, filePermissionRepository, permissionRepository, userRepository, *guard, userService)
+	permissionService := permission.NewPermissionService(decryptService, fileSystem, filePermissionRepository, permissionRepository, userRepository, fileRepository, *guard, userService)
 	permissionHandler := permission.NewPermissionHandler(permissionService)
 
 	fileService := file.NewFileService(filePermissionRepository, permissionService, *redisClient, userService, fileSystem, fileRepository, *guard)
@@ -168,10 +168,21 @@ func main() {
 		}
 	}
 
-	mux.Handle("/request/list", request.AuthMiddleware(http.HandlerFunc(permissionHandler.GetNotifications)))
-	mux.Handle("/request/", request.AuthMiddleware(http.HandlerFunc(permissionRoutes)))
+	filePermissionRoutes := func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "POST":
+			permissionHandler.RequestFilePermission(w, r)
+		case "OPTIONS":
+			w.Write([]byte("success"))
+		}
+	}
 
-	permissionActionRoutes := func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/request/profile/list", request.AuthMiddleware(http.HandlerFunc(permissionHandler.GetProfileNotifications)))
+	mux.Handle("/request/file/list", request.AuthMiddleware(http.HandlerFunc(permissionHandler.GetFileNotifications)))
+	mux.Handle("/request/", request.AuthMiddleware(http.HandlerFunc(permissionRoutes)))
+	mux.Handle("/request/file/", request.AuthMiddleware(http.HandlerFunc(filePermissionRoutes)))
+
+	profilePermissionActionRoutes := func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "POST":
 			permissionHandler.RespondPermissionRequest(w, r)
@@ -179,8 +190,17 @@ func main() {
 			w.Write([]byte("success"))
 		}
 	}
+	filePermissionActionRoutes := func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "POST":
+			permissionHandler.RespondFilePermissionRequest(w, r)
+		case "OPTIONS":
+			w.Write([]byte("success"))
+		}
+	}
 
-	mux.Handle("/request/action/", request.AuthMiddleware(http.HandlerFunc(permissionActionRoutes)))
+	mux.Handle("/request/action/profile/", request.AuthMiddleware(http.HandlerFunc(profilePermissionActionRoutes)))
+	mux.Handle("/request/action/file/", request.AuthMiddleware(http.HandlerFunc(filePermissionActionRoutes)))
 
 	var handler http.Handler = mux
 

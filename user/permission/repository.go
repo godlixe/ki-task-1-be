@@ -21,30 +21,229 @@ func NewPermissionRepository(db DB) *permissionRepository {
 	}
 }
 
-func (pr *permissionRepository) GetNotifications(
+func (pr *permissionRepository) GetProfileNotifications(
 	ctx context.Context,
 	userID uint64,
 	status int,
 	direction int,
-) ([]Notification, error) {
-	var notifications []Notification
+) ([]ProfileNotification, error) {
+	var notifications []ProfileNotification
 	var err error
 
 	stmt := `
 		SELECT
-				n.id, 
-				n.source_user_id,
+				pn.id,
+				pn.source_user_id,
 				u1.username,
-				n.target_user_id,
+				pn.target_user_id,
 				u2.username,
-				n.status,
-				n.file_id
+				pn.status
+		FROM
+			profile_notifications pn
+		LEFT JOIN
+		 	users u1 ON pn.source_user_id = u1.id
+		LEFT JOIN
+		 	users u2 ON pn.target_user_id = u2.id
+		WHERE 1=1
+		AND
+		`
+
+	ctr := 1
+	var args []any
+
+	if status != 3 {
+		stmt += fmt.Sprintf(" pn.status = $%v AND ", ctr)
+		args = append(args, status)
+		ctr++
+	}
+
+	if direction == 0 {
+		stmt += fmt.Sprintf(" pn.source_user_id = $%v", ctr)
+	} else {
+		stmt += fmt.Sprintf(" pn.target_user_id = $%v", ctr)
+	}
+
+	args = append(args, userID)
+
+	fmt.Println(stmt)
+	rows, err := pr.db.GetConn().Query(ctx, stmt, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var n ProfileNotification
+		err := rows.Scan(
+			&n.ID,
+			&n.SourceUserID,
+			&n.SourceUser.Username,
+			&n.TargetUserID,
+			&n.TargetUser.Username,
+			&n.Status,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		notifications = append(notifications, n)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return notifications, nil
+}
+
+func (pr *permissionRepository) GetProfileNotificationById(
+	ctx context.Context,
+	notificationID uint64,
+) (*ProfileNotification, error) {
+	var notification ProfileNotification
+
+	stmt := `
+		SELECT
+			id,
+			source_user_id,
+			target_user_id,
+			status
+		FROM profile_notifications
+		WHERE
+			id = $1
+	`
+
+	err := pr.db.GetConn().QueryRow(
+		ctx,
+		stmt,
+		notificationID,
+	).Scan(
+		&notification.ID,
+		&notification.SourceUserID,
+		&notification.TargetUserID,
+		&notification.Status,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &notification, nil
+}
+
+func (pr *permissionRepository) GetProfileNotificationByUserId(
+	ctx context.Context,
+	sourceUserID uint64,
+	targetUserID uint64,
+) (*ProfileNotification, error) {
+	var notification ProfileNotification
+
+	stmt := `
+		SELECT
+			id,
+			source_user_id,
+			target_user_id,
+			status
+		FROM profile_notifications
+		WHERE
+			source_user_id = $1 AND
+			target_user_id = $2
+	`
+
+	err := pr.db.GetConn().QueryRow(
+		ctx,
+		stmt,
+		sourceUserID,
+		targetUserID,
+	).Scan(
+		&notification.ID,
+		&notification.SourceUserID,
+		&notification.TargetUserID,
+		&notification.Status,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &notification, nil
+}
+
+func (pr *permissionRepository) CreateProfileNotification(ctx context.Context, notification ProfileNotification) error {
+	stmt := `
+		INSERT INTO
+			profile_notifications (
+				source_user_id,
+				target_user_id,
+				status
+			)
+		VALUES (
+			$1,
+			$2,
+			$3
+		)
+	`
+
+	_, err := pr.db.GetConn().Exec(
+		ctx,
+		stmt,
+		notification.SourceUserID,
+		notification.TargetUserID,
+		notification.Status,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (pr *permissionRepository) UpdateProfileNotification(ctx context.Context, notification ProfileNotification) error {
+	stmt := `
+		UPDATE
+			profile_notifications SET
+				source_user_id = $2,
+				target_user_id = $3,
+				status = $4
+		WHERE id = $1
+	`
+
+	_, err := pr.db.GetConn().Exec(
+		ctx,
+		stmt,
+		notification.ID,
+		notification.SourceUserID,
+		notification.TargetUserID,
+		notification.Status,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (pr *permissionRepository) GetFileNotifications(
+	ctx context.Context,
+	userID uint64,
+	status int,
+	direction int,
+) ([]FileNotification, error) {
+	var notifications []FileNotification
+	var err error
+
+	stmt := `
+		SELECT
+				fn.id, 
+				fn.source_user_id,
+				u1.username,
+				fn.target_user_id,
+				u2.username,
+				fn.status,
+				fn.file_id
 		 FROM 
-		 	notifications n
+		 	file_notifications fn
 		 LEFT JOIN
-		 	users u1 ON n.source_user_id = u1.id
+		 	users u1 ON fn.source_user_id = u1.id
 		LEFT JOIN 
-		 	users u2 ON n.target_user_id = u2.id
+		 	users u2 ON fn.target_user_id = u2.id
 		 WHERE 1=1
 		 AND
 		 `
@@ -53,15 +252,15 @@ func (pr *permissionRepository) GetNotifications(
 	var args []any
 
 	if status != 3 {
-		stmt += fmt.Sprintf(" n.status = $%v AND ", ctr)
+		stmt += fmt.Sprintf(" fn.status = $%v AND ", ctr)
 		args = append(args, status)
 		ctr++
 	}
 
 	if direction == 0 {
-		stmt += fmt.Sprintf(" n.source_user_id = $%v", ctr)
+		stmt += fmt.Sprintf(" fn.source_user_id = $%v", ctr)
 	} else {
-		stmt += fmt.Sprintf(" n.target_user_id = $%v", ctr)
+		stmt += fmt.Sprintf(" fn.target_user_id = $%v", ctr)
 	}
 
 	args = append(args, userID)
@@ -73,7 +272,7 @@ func (pr *permissionRepository) GetNotifications(
 	defer rows.Close()
 
 	for rows.Next() {
-		var n Notification
+		var n FileNotification
 		err := rows.Scan(
 			&n.ID,
 			&n.SourceUserID,
@@ -96,8 +295,8 @@ func (pr *permissionRepository) GetNotifications(
 	return notifications, nil
 }
 
-func (pr *permissionRepository) GetNotificationById(ctx context.Context, notifcationID uint64) (*Notification, error) {
-	var notification Notification
+func (pr *permissionRepository) GetFileNotificationById(ctx context.Context, notifcationID uint64) (*FileNotification, error) {
+	var notification FileNotification
 
 	stmt := `
 		SELECT
@@ -106,7 +305,7 @@ func (pr *permissionRepository) GetNotificationById(ctx context.Context, notifca
 			target_user_id,
 			status,
 			file_id
-		FROM notifications
+		FROM file_notifications
 		WHERE
 			id = $1
 	`
@@ -129,12 +328,13 @@ func (pr *permissionRepository) GetNotificationById(ctx context.Context, notifca
 	return &notification, nil
 }
 
-func (pr *permissionRepository) GetNotificationByUserId(
+func (pr *permissionRepository) GetFileNotificationByUserIdAndFileId(
 	ctx context.Context,
 	sourceUserID uint64,
 	targetUserID uint64,
-) (*Notification, error) {
-	var notification Notification
+	fileID int,
+) (*FileNotification, error) {
+	var notification FileNotification
 
 	stmt := `
 		SELECT
@@ -143,10 +343,11 @@ func (pr *permissionRepository) GetNotificationByUserId(
 			target_user_id,
 			status,
 			file_id
-		FROM notifications
+		FROM file_notifications
 		WHERE
 			source_user_id = $1 AND
-			target_user_id = $2
+			target_user_id = $2 AND
+			file_id = $3
 	`
 
 	err := pr.db.GetConn().QueryRow(
@@ -154,6 +355,7 @@ func (pr *permissionRepository) GetNotificationByUserId(
 		stmt,
 		sourceUserID,
 		targetUserID,
+		fileID,
 	).Scan(
 		&notification.ID,
 		&notification.SourceUserID,
@@ -168,10 +370,10 @@ func (pr *permissionRepository) GetNotificationByUserId(
 	return &notification, nil
 }
 
-func (pr *permissionRepository) CreateNotification(ctx context.Context, notification Notification) error {
+func (pr *permissionRepository) CreateFileNotification(ctx context.Context, notification FileNotification) error {
 	stmt := `
 		INSERT INTO
-			notifications (
+			file_notifications (
 				source_user_id,
 				target_user_id,
 				file_id,
@@ -200,10 +402,10 @@ func (pr *permissionRepository) CreateNotification(ctx context.Context, notifica
 	return nil
 }
 
-func (pr *permissionRepository) UpdateNotification(ctx context.Context, notification Notification) error {
+func (pr *permissionRepository) UpdateFileNotification(ctx context.Context, notification FileNotification) error {
 	stmt := `
 		UPDATE
-			notifications SET
+			file_notifications SET
 				source_user_id = $2,
 				target_user_id = $3,
 				status = $4
@@ -284,65 +486,6 @@ func (pr *permissionRepository) CreatePermission(ctx context.Context, permission
 		permission.TargetUserID,
 		permission.Key,
 		permission.KeyReference,
-	)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (pr *permissionRepository) GetNotificationByID(
-	ctx context.Context,
-	notificationID uint64,
-) (Notification, error) {
-	var notification Notification
-	var err error
-
-	stmt := `
-		SELECT
-				n.id, 
-				n.source_user_id,
-				n.target_user_id,
-				n.status,
-				n.file_id
-		 FROM 
-		 	notifications n
-		 WHERE id = $1
-		 `
-
-	err = pr.db.GetConn().QueryRow(ctx, stmt, notificationID).Scan(
-		&notification.ID,
-		&notification.SourceUserID,
-		&notification.TargetUserID,
-		&notification.Status,
-		&notification.FileID,
-	)
-	if err != nil {
-		return Notification{}, err
-	}
-
-	return notification, nil
-}
-
-func (pr *permissionRepository) UpdateNotificationStatus(
-	ctx context.Context,
-	notification Notification,
-) error {
-	stmt := `
-	UPDATE
-		notifications 
-	SET
-		status = $1
-	WHERE 
-		id = $2
-	`
-
-	_, err := pr.db.GetConn().Exec(
-		ctx,
-		stmt,
-		notification.Status,
-		notification.ID,
 	)
 	if err != nil {
 		return err
