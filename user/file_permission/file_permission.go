@@ -29,11 +29,11 @@ type File struct {
 // FilePermission defines a permission to file
 // relationship.
 type FilePermission struct {
-	ID           uint64 `json:"id"`
-	Filepath     string `json:"filepath"`
-	PermissionID uint64
-	Permission   Permission
+	ID           uint64     `json:"id"`
+	Filepath     string     `json:"filepath"`
+	PermissionID uint64     `json:"permission_id"`
+	Permission   Permission `json:"permission"`
 
-	FileID uint64
-	File   File `json:"file"`
+	FileID uint64 `json:"file_id"`
+	File   File   `json:"file"`
 }

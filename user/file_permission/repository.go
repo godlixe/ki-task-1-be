@@ -178,6 +178,66 @@ func (fpr *filePermissionRepository) GetByUserFilePermission(
 	return fp, nil
 }
 
+func (fpr *filePermissionRepository) ListByUserFilePermission(
+	ctx context.Context,
+	sourceUserID uint64,
+	targetUserID uint64,
+) ([]FilePermission, error) {
+	var filePermissions []FilePermission
+	var err error
+
+	stmt := `
+		SELECT
+				fp.id,
+				fp.filepath,
+				fp.permission_id,
+				f.id,
+				f.user_id,
+				f.filename,
+				f.type,
+				f.filepath
+		 FROM 
+		 	file_permissions fp
+		 LEFT JOIN
+		 	files f ON fp.file_id = f.id
+		 LEFT JOIN
+			permissions p ON fp.permission_id= p.id  	
+		 WHERE p.source_user_id = $1
+		 	AND
+		p.target_user_id = $2
+		 `
+
+	rows, err := fpr.db.GetConn().Query(ctx, stmt, sourceUserID, targetUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var fp FilePermission
+		err := rows.Scan(
+			&fp.ID,
+			&fp.Filepath,
+			&fp.PermissionID,
+			&fp.File.ID,
+			&fp.File.UserID,
+			&fp.File.Filename,
+			&fp.File.Type,
+			&fp.File.Filepath,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		filePermissions = append(filePermissions, fp)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return filePermissions, nil
+}
+
 func (fpr *filePermissionRepository) CreateFilePermission(
 	ctx context.Context,
 	filePermission FilePermission,

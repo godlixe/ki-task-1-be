@@ -1,6 +1,7 @@
 package file
 
 import (
+	filepermission "encryption/user/file_permission"
 	"errors"
 )
 
@@ -16,6 +17,8 @@ type File struct {
 	// Metadata is an encrypted reference to
 	// the file's key.
 	KeyReference []byte `json:"-"`
+
+	FilePermissions filepermission.FilePermission `json:"file_permissions"`
 
 	// File content.
 	Content []byte

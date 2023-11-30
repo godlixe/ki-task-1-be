@@ -71,6 +71,12 @@ type FilePermissionRepository interface {
 		targetUserID uint64,
 		fileID uint64,
 	) (filepermission.FilePermission, error)
+
+	ListByUserFilePermission(
+		ctx context.Context,
+		sourceUserID uint64,
+		targetUserID uint64,
+	) ([]filepermission.FilePermission, error)
 }
 
 type fileService struct {
@@ -133,6 +139,28 @@ func (fs *fileService) listFiles(
 	res, err := fs.fileRepository.List(ctx, targetUser.ID, fileType)
 	if err != nil {
 		return nil, err
+	}
+
+	// get user's permissions if user is not owner
+	if userID != targetUser.ID {
+		filePermissions, err := fs.filePermissionRepository.ListByUserFilePermission(
+			ctx,
+			userID,
+			targetUser.ID,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		var filePermissionMap = make(map[uint64]filepermission.FilePermission)
+
+		for _, data := range filePermissions {
+			filePermissionMap[data.File.ID] = data
+		}
+
+		for idx, data := range res {
+			res[idx].FilePermissions = filePermissionMap[data.ID]
+		}
 	}
 
 	return res, nil
