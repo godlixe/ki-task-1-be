@@ -1,15 +1,16 @@
 package profile
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"encryption/cache"
 	"encryption/guard"
 	"encryption/user"
 	"encryption/user/permission"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -81,81 +82,88 @@ func (ps *profileService) getUserProfile(
 		return nil, err
 	}
 
-	needAuth := true
-
-	if request.UserID != targetUser.ID && needAuth {
-
-		token := ctx.Value("user_token").(string)
-
-		permission, err := ps.permissionRepository.GetPermissionByUserId(ctx, request.UserID, targetUser.ID)
-		if err != nil && err != pgx.ErrNoRows {
-			return nil, err
-		}
-		if permission == nil {
-			return nil, fmt.Errorf("You do not have permission to access this %s data", request.TargetUsername)
-		}
-
-		// get metadata key
-		permissionKey, err := ps.guard.GetKey(ctx, permissionTable, permission.KeyReference)
+	if request.UserID == targetUser.ID {
+		key, err := ps.guard.GetKey(ctx, userKeyTable, targetUser.KeyReference)
 		if err != nil {
 			return nil, err
 		}
 
-		// decrypt permission key
-		originalSymmetricKey, err := ps.guard.Decrypt(permissionKey.PlainKey, permission.Key)
+		err = targetUser.DecryptUserData(&ps.guard, key)
 		if err != nil {
 			return nil, err
 		}
 
-		symmetricKey, err := base64.StdEncoding.DecodeString(request.Key)
-		if err != nil {
-			return nil, err
-		}
-
-		privateKey, err := ps.guard.ParsePrivateKey(sourceUser.PrivateKey)
-		if err != nil {
-			return nil, err
-		}
-
-		decryptedSymmetricKey, err := ps.guard.DecryptRSA(privateKey, symmetricKey)
-		if err != nil {
-			return nil, err
-		}
-
-		if !bytes.Equal(originalSymmetricKey, decryptedSymmetricKey) {
-			return nil, errors.New("access denied, key mismatch")
-		}
-
-		// set cache for permission
-
-		err = ps.redisClient.Set(ctx,
-			fmt.Sprintf("permission:%v_%v", token, targetUser.ID),
-			"true",
-		)
-		if err != nil {
-			return nil, err
-		}
+		return &GetUserProfileResponse{
+			Username:    targetUser.Username,
+			Name:        targetUser.Name,
+			PhoneNumber: targetUser.PhoneNumber,
+			Email:       targetUser.Email,
+			Gender:      targetUser.Gender,
+			Religion:    targetUser.Religion,
+			Nationality: targetUser.Nationality,
+			Address:     targetUser.Address,
+			BirthInfo:   targetUser.BirthInfo,
+		}, nil
 	}
 
-	key, err := ps.guard.GetKey(ctx, userKeyTable, targetUser.KeyReference)
+	token := ctx.Value("user_token").(string)
+
+	permission, err := ps.permissionRepository.GetPermissionByUserId(ctx, request.UserID, targetUser.ID)
+	if err != nil && err != pgx.ErrNoRows {
+		return nil, err
+	}
+	if permission == nil {
+		return nil, fmt.Errorf("You do not have permission to access this %s data", request.TargetUsername)
+	}
+
+	privateKey, err := ps.guard.ParsePrivateKey(sourceUser.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
 
-	err = targetUser.DecryptUserData(&ps.guard, key)
+	decodedKey, err := base64.StdEncoding.DecodeString(request.Key)
+	if err != nil {
+		return nil, err
+	}
+	decryptedSymmetricKey, err := ps.guard.DecryptRSA(privateKey, decodedKey)
+	if err != nil {
+		return nil, err
+	}
+
+	targetUserDataFilePath := fmt.Sprintf("files/%d_%d/user.json", sourceUser.ID, targetUser.ID)
+	targetUserData, err := os.ReadFile(targetUserDataFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	decryptedTargetUserDataJson, err := ps.guard.Decrypt(decryptedSymmetricKey, targetUserData)
+	if err != nil {
+		return nil, err
+	}
+
+	var decryptedTargetUserData user.User
+	err = json.Unmarshal(decryptedTargetUserDataJson, &decryptedTargetUserData)
+	if err != nil {
+		return nil, err
+	}
+
+	err = ps.redisClient.Set(ctx,
+		fmt.Sprintf("permission:%v_%v", token, targetUser.ID),
+		"true",
+	)
 	if err != nil {
 		return nil, err
 	}
 
 	return &GetUserProfileResponse{
-		Username:    targetUser.Username,
-		Name:        targetUser.Name,
-		PhoneNumber: targetUser.PhoneNumber,
-		Email:       targetUser.Email,
-		Gender:      targetUser.Gender,
-		Religion:    targetUser.Religion,
-		Nationality: targetUser.Nationality,
-		Address:     targetUser.Address,
-		BirthInfo:   targetUser.BirthInfo,
+		Username:    decryptedTargetUserData.Username,
+		Name:        decryptedTargetUserData.Name,
+		PhoneNumber: decryptedTargetUserData.PhoneNumber,
+		Email:       decryptedTargetUserData.Email,
+		Gender:      decryptedTargetUserData.Gender,
+		Religion:    decryptedTargetUserData.Religion,
+		Nationality: decryptedTargetUserData.Nationality,
+		Address:     decryptedTargetUserData.Address,
+		BirthInfo:   decryptedTargetUserData.BirthInfo,
 	}, nil
 }
