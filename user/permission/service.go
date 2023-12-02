@@ -264,7 +264,7 @@ func (ps *permissionService) RequestFilePermission(
 	if err == pgx.ErrNoRows {
 		return nil, errors.New("Requested file not exists")
 	}
-	if file.ID == request.UserID {
+	if file.UserID == request.UserID {
 		return nil, errors.New("Request permission failed. You can not request permission to your file.")
 	}
 
