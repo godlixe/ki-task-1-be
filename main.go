@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -137,6 +138,13 @@ func main() {
 		switch r.Method {
 		case "GET":
 			fileHandler.GetFile(w, r)
+		case "POST":
+			urlFlag := strings.Split(r.URL.Path, "/")[2]
+			if urlFlag == "sign" { // /file/sign/:id
+				fileHandler.SignFile(w, r)
+			} else if urlFlag == "verify" { // /file/verify/:id
+				// handler verify file
+			}
 		case "DELETE":
 			fileHandler.DeleteFile(w, r)
 		case "OPTIONS":

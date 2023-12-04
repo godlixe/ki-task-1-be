@@ -22,6 +22,7 @@ type FileService interface {
 		fileType string,
 	) ([]byte, error)
 	deleteFile(ctx context.Context, userID uint64, sfileID uint64) error
+	signFile(ctx context.Context, userId uint64, fileId uint64) error
 }
 
 type Handler struct {
@@ -300,6 +301,64 @@ func (h *Handler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = h.fileService.deleteFile(context.TODO(), userId, id)
+	if err != nil {
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
+		return
+	}
+
+	response := helper.Response{
+		Message: "success",
+		Data:    nil,
+	}
+
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonResponse)
+}
+
+func (h *Handler) SignFile(w http.ResponseWriter, r *http.Request) {
+	userId := uint64(r.Context().Value("user_id").(float64))
+	stringFileId := strings.TrimPrefix(r.URL.Path, "/file/sign/")
+
+	fileId, err := strconv.ParseUint(stringFileId, 10, 64)
+	if err != nil {
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
+		return
+	}
+
+	err = h.fileService.signFile(r.Context(), userId, fileId)
 	if err != nil {
 		response := helper.Response{
 			Message: err.Error(),

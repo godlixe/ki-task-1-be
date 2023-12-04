@@ -2,6 +2,8 @@ package file
 
 import (
 	"context"
+	"crypto/rsa"
+	"encoding/json"
 	"encryption/cache"
 	"encryption/guard"
 	"encryption/user"
@@ -10,8 +12,10 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx"
 )
 
 const fileTable = "keys"
@@ -23,6 +27,8 @@ type Guard interface {
 	GenerateKey() ([]byte, error)
 	Decrypt(key []byte, data []byte) ([]byte, error)
 	Encrypt(key []byte, data []byte) ([]byte, error)
+	SignRSA(privateKey *rsa.PrivateKey, data []byte) ([]byte, error)
+	VerifyRSA(publicKey *rsa.PublicKey, signature []byte, data []byte) ([]byte, error)
 }
 
 type FileSystem interface {
@@ -34,11 +40,13 @@ type FileRepository interface {
 	List(ctx context.Context, userID uint64, fileType string) ([]File, error)
 	Create(ctx context.Context, file File) error
 	Get(ctx context.Context, id uint64) (File, error)
+	UpdateSignedStatus(ctx context.Context, file File) error
 	Delete(ctx context.Context, id uint64) error
 }
 
 type UserService interface {
 	GetUserByUsername(context.Context, string) (*user.User, error)
+	GetUserWithRSA(context.Context, uint64) (*user.User, error)
 }
 
 type PermissionService interface {
@@ -332,6 +340,108 @@ func (fs *fileService) deleteFile(ctx context.Context, userID uint64, id uint64)
 	if err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func (fs *fileService) signFile(ctx context.Context, userId uint64, fileId uint64) error {
+	// get file
+	// if not found, return error
+	file, err := fs.fileRepository.Get(ctx, fileId)
+	if err != nil && err != pgx.ErrNoRows {
+		return err
+	}
+	if err == pgx.ErrNoRows {
+		return errors.New("Requested file not found")
+	}
+
+	// check user authority
+	if userId != file.UserID {
+		return errors.New("You do not have access to this resource data")
+	}
+
+	// check: if already signed, return error
+	if file.IsSigned {
+		return errors.New("Requested file already signed")
+	}
+
+	// get user
+	user, err := fs.userService.GetUserWithRSA(ctx, userId)
+	if err != nil {
+		return err
+	}
+
+	// create signature metadata about the file and user
+	signatureMetadata := SignatureMetadata{
+		SignDate: time.Now(),
+		SignBy:   user.Username,
+		Contact:  user.Email,
+	}
+
+	// encrypt with private
+	privateKey, err := fs.guard.ParsePrivateKey(user.PrivateKey)
+	if err != nil {
+		return err
+	}
+
+	byteSignatureMetadata, err := json.Marshal(signatureMetadata)
+	if err != nil {
+		return err
+	}
+
+	signature, err := fs.guard.SignRSA(privateKey, []byte(byteSignatureMetadata))
+	if err != nil {
+		return err
+	}
+
+	fullDataComment := []byte{}
+	fullDataComment = append(fullDataComment, []byte("\n%"+DataCommentKey)...)
+	fullDataComment = append(fullDataComment, byteSignatureMetadata...)
+
+	fullSignatureComment := []byte{}
+	fullSignatureComment = append(fullSignatureComment, []byte("\n%"+SignatureCommentKey)...)
+	fullSignatureComment = append(fullSignatureComment, signature...)
+
+	fullPublicKeyComment := []byte{}
+	fullPublicKeyComment = append(fullPublicKeyComment, []byte("\n%"+PublicKeyCommentKey)...)
+	fullPublicKeyComment = append(fullPublicKeyComment, []byte(user.PublicKey)...)
+
+	// read file
+	decryptedFile, err := fs.getFile(ctx, user.ID, fileId)
+	if err != nil {
+		return err
+	}
+
+	// append signature & public key to file
+	fullFileContent := []byte{}
+	fullFileContent = append(fullFileContent, decryptedFile.Content...)
+	fullFileContent = append(fullFileContent, fullDataComment...)
+	fullFileContent = append(fullFileContent, fullSignatureComment...)
+	fullFileContent = append(fullFileContent, fullPublicKeyComment...)
+
+	// encrypt file
+	key, err := fs.guard.GetKey(ctx, fileTable, file.KeyReference)
+	if err != nil {
+		return err
+	}
+
+	// res, err := fs.guard.Encrypt(key, fileContent)
+	res, err := fs.guard.Encrypt(key.PlainKey, fullFileContent)
+	if err != nil {
+		return err
+	}
+
+	// overwrite file content
+	fs.fileSystem.Write(file.Filepath, res)
+
+	// update file (is_signed: true) to db
+	file.IsSigned = true
+	err = fs.fileRepository.UpdateSignedStatus(ctx, file)
+	if err != nil {
+		return err
+	}
+
+	// TODO: handle duplicate file in sharing to other users
 
 	return nil
 }

@@ -3,12 +3,14 @@ package guard
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/des"
 	"crypto/rand"
 	"crypto/rc4"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
@@ -295,4 +297,31 @@ func (g *Guard) DecryptRSA(publicKey *rsa.PrivateKey, data []byte) ([]byte, erro
 	}
 
 	return ciphertext, err
+}
+
+func (g *Guard) SignRSA(privateKey *rsa.PrivateKey, data []byte) ([]byte, error) {
+	hashedData := sha256.Sum256(data)
+
+	signature, err := rsa.SignPKCS1v15(
+		nil,
+		privateKey,
+		crypto.SHA256,
+		hashedData[:],
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return signature, err
+}
+
+func (g *Guard) VerifyRSA(publicKey *rsa.PublicKey, signature []byte, data []byte) error {
+	err := rsa.VerifyPKCS1v15(
+		publicKey,
+		crypto.SHA256,
+		data,
+		signature,
+	)
+
+	return err
 }

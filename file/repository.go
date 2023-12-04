@@ -66,6 +66,7 @@ func (fr *fileRepository) Get(ctx context.Context, id uint64) (File, error) {
 			user_id,
 			filename,
 			filepath,
+			is_signed,
 			key_reference 
 	 FROM files 
 	 WHERE id = $1
@@ -76,6 +77,7 @@ func (fr *fileRepository) Get(ctx context.Context, id uint64) (File, error) {
 		&file.UserID,
 		&file.Filename,
 		&file.Filepath,
+		&file.IsSigned,
 		&file.KeyReference,
 	)
 	if err != nil {
@@ -93,7 +95,8 @@ func (fr *fileRepository) List(ctx context.Context, userID uint64, fileType stri
 		SELECT
 				id, 
 				filename,
-				type
+				type,
+				is_signed
 		 FROM files 
 		 WHERE type = $1
 		 AND user_id = $2
@@ -111,6 +114,7 @@ func (fr *fileRepository) List(ctx context.Context, userID uint64, fileType stri
 			&f.ID,
 			&f.Filename,
 			&f.Type,
+			&f.IsSigned,
 		)
 		if err != nil {
 			return nil, err
@@ -123,6 +127,27 @@ func (fr *fileRepository) List(ctx context.Context, userID uint64, fileType stri
 	}
 
 	return files, nil
+}
+
+func (fr *fileRepository) UpdateSignedStatus(ctx context.Context, file File) error {
+	stmt := `
+	UPDATE
+		files SET
+			is_signed = $2
+	WHERE id = $1
+	`
+
+	_, err := fr.db.GetConn().Exec(
+		ctx,
+		stmt,
+		file.ID,
+		file.IsSigned,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (fr *fileRepository) Delete(ctx context.Context, id uint64) error {

@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS files (
     filename VARCHAR(255) NOT NULL,
     type VARCHAR(25) NOT NULL,
     filepath VARCHAR(255) NOT NULL,
+    is_signed BOOLEAN DEFAULT false,
     key_reference BYTEA,
     CONSTRAINT fk_users FOREIGN KEY (user_id) REFERENCES users(id)
 )

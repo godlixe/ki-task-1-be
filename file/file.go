@@ -3,6 +3,7 @@ package file
 import (
 	filepermission "encryption/user/file_permission"
 	"errors"
+	"time"
 )
 
 // File represents a file entity.
@@ -13,6 +14,7 @@ type File struct {
 	Filename string `json:"filename"`
 	Type     string `json:"type"`
 	Filepath string `json:"filepath,omitempty"`
+	IsSigned bool   `json:"is_signed"`
 
 	// Metadata is an encrypted reference to
 	// the file's key.
@@ -33,6 +35,13 @@ const (
 	Misc           string = "misc"
 )
 
+// Digital signature const.
+const (
+	DataCommentKey      string = "DataKeyf-14_"
+	SignatureCommentKey string = "SignatureKeyf-14_"
+	PublicKeyCommentKey string = "Publickeyf-14_"
+)
+
 func ValidateType(s string) (string, error) {
 	switch s {
 	case "id_card":
@@ -48,4 +57,10 @@ func ValidateType(s string) (string, error) {
 	}
 
 	return "", errors.New("invalid type")
+}
+
+type SignatureMetadata struct {
+	SignDate time.Time
+	SignBy   string
+	Contact  string
 }

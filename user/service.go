@@ -273,6 +273,9 @@ func (us *userService) GetUserWithRSA(
 	if err != nil && err != pgx.ErrNoRows {
 		return nil, err
 	}
+	if err == pgx.ErrNoRows {
+		return nil, errors.New("User with related username does not exists")
+	}
 
 	key, err := us.guard.GetKey(ctx, userKeyTable, user.KeyReference)
 	if err != nil {
@@ -294,6 +297,34 @@ func (us *userService) GetUserByUsername(
 	user, err := us.userRepository.GetByUsername(ctx, username)
 	if err != nil && err != pgx.ErrNoRows {
 		return nil, err
+	}
+	if err == pgx.ErrNoRows {
+		return nil, errors.New("User with related username does not exists")
+	}
+
+	key, err := us.guard.GetKey(ctx, userKeyTable, user.KeyReference)
+	if err != nil {
+		return nil, err
+	}
+
+	err = user.DecryptUserData(&us.guard, key)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func (us *userService) GetUserById(
+	ctx context.Context,
+	userId uint64,
+) (*User, error) {
+	user, err := us.userRepository.GetById(ctx, userId)
+	if err != nil && err != pgx.ErrNoRows {
+		return nil, err
+	}
+	if err == pgx.ErrNoRows {
+		return nil, errors.New("User with related username does not exists")
 	}
 
 	key, err := us.guard.GetKey(ctx, userKeyTable, user.KeyReference)
