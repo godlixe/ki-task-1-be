@@ -60,7 +60,8 @@ func ValidateType(s string) (string, error) {
 }
 
 type SignatureMetadata struct {
-	SignDate time.Time
-	SignBy   string
-	Contact  string
+	SignDate time.Time `json:"sign_date"`
+	SignBy   string    `json:"sign_by"`
+	Contact  string    `json:"contact"`
 }
+
