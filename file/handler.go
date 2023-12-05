@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"encryption/helper"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"strconv"
@@ -23,6 +24,7 @@ type FileService interface {
 	) ([]byte, error)
 	deleteFile(ctx context.Context, userID uint64, sfileID uint64) error
 	signFile(ctx context.Context, userId uint64, fileId uint64) error
+	verifyFile(ctx context.Context, fileContent []byte) (SignatureMetadata, error)
 }
 
 type Handler struct {
@@ -380,6 +382,99 @@ func (h *Handler) SignFile(w http.ResponseWriter, r *http.Request) {
 	response := helper.Response{
 		Message: "success",
 		Data:    nil,
+	}
+
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonResponse)
+}
+
+func (h *Handler) VerifyFile(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
+		return
+	}
+
+	uploadedFile, _, err := r.FormFile("file")
+	if err != nil {
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
+		return
+	}
+	defer uploadedFile.Close()
+
+	fileContent, err := io.ReadAll(uploadedFile)
+	if err != nil {
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
+		return
+	}
+
+	signerMetadata, err := h.fileService.verifyFile(r.Context(), fileContent)
+	if err != nil {
+		response := helper.Response{
+			Message: err.Error(),
+			Data:    nil,
+		}
+
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
+		return
+	}
+
+	response := helper.Response{
+		Message: "success",
+		Data:    signerMetadata,
 	}
 
 	jsonResponse, err := json.Marshal(response)

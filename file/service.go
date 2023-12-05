@@ -445,3 +445,72 @@ func (fs *fileService) signFile(ctx context.Context, userId uint64, fileId uint6
 
 	return nil
 }
+
+func (fs *fileService) verifyFile(ctx context.Context, fileContent []byte) (SignatureMetadata, error) {
+
+	// Parse file with tokens,
+	// tokens in tokens should be by order of
+	// the tokens inside the file.
+	tokens := []string{
+		"%" + DataCommentKey,
+		"%" + SignatureCommentKey,
+		"%" + PublicKeyCommentKey,
+	}
+
+	// the result follows the token content sequence
+	results := [3]string{}
+
+	// counter is a pointer to the token that is
+	// going to be parsed
+	ctr := 0
+
+	// idx is a pointer to where the file is reading.
+	idx := 0
+
+	stringFileContent := string(fileContent)
+
+	var buffer []byte
+	for idx < len(stringFileContent) {
+		if ctr <= 2 &&
+			idx-len(stringFileContent[idx:idx+len(tokens[ctr])]) < len(stringFileContent) &&
+			stringFileContent[idx:idx+len(tokens[ctr])] == tokens[ctr] {
+
+			if ctr > 0 && len(buffer) > 0 {
+				results[ctr-1] = string(buffer[:len(buffer)-1])
+				buffer = []byte{}
+			}
+
+			idx += len(stringFileContent[idx : idx+len(tokens[ctr])])
+			ctr++
+		}
+
+		if ctr > 0 {
+			buffer = append(buffer, stringFileContent[idx])
+		}
+
+		if idx == len(stringFileContent)-1 {
+			results[ctr-1] = string(buffer)
+		}
+
+		idx++
+	}
+
+	pubKey, err := fs.guard.ParsePublicKey(results[2])
+	if err != nil {
+		return SignatureMetadata{}, err
+	}
+
+	var signatureMetadata SignatureMetadata
+
+	err = json.Unmarshal([]byte(results[0]), &signatureMetadata)
+	if err != nil {
+		return SignatureMetadata{}, err
+	}
+
+	err = fs.guard.VerifyRSA(pubKey, []byte(results[1]), []byte(results[0]))
+	if err != nil {
+		return SignatureMetadata{}, err
+	}
+
+	return signatureMetadata, nil
+}

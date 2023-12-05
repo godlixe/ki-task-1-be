@@ -316,6 +316,7 @@ func (g *Guard) SignRSA(privateKey *rsa.PrivateKey, data []byte) ([]byte, error)
 }
 
 func (g *Guard) VerifyRSA(publicKey *rsa.PublicKey, signature []byte, data []byte) error {
+
 	err := rsa.VerifyPKCS1v15(
 		publicKey,
 		crypto.SHA256,

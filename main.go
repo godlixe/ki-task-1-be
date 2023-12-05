@@ -142,8 +142,8 @@ func main() {
 			urlFlag := strings.Split(r.URL.Path, "/")[2]
 			if urlFlag == "sign" { // /file/sign/:id
 				fileHandler.SignFile(w, r)
-			} else if urlFlag == "verify" { // /file/verify/:id
-				// handler verify file
+			} else if urlFlag == "verify" { // /file/verify -> nerima dari upload
+				fileHandler.VerifyFile(w, r)
 			}
 		case "DELETE":
 			fileHandler.DeleteFile(w, r)
