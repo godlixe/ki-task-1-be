@@ -471,8 +471,9 @@ func (fs *fileService) verifyFile(ctx context.Context, fileContent []byte) (Sign
 
 	var buffer []byte
 	for idx < len(stringFileContent) {
+		fmt.Println(idx+len(tokens[ctr]), len(stringFileContent))
 		if ctr <= 2 &&
-			idx-len(stringFileContent[idx:idx+len(tokens[ctr])]) < len(stringFileContent) &&
+			idx+len(tokens[ctr]) < len(stringFileContent) &&
 			stringFileContent[idx:idx+len(tokens[ctr])] == tokens[ctr] {
 
 			if ctr > 0 && len(buffer) > 0 {
@@ -488,7 +489,7 @@ func (fs *fileService) verifyFile(ctx context.Context, fileContent []byte) (Sign
 			buffer = append(buffer, stringFileContent[idx])
 		}
 
-		if idx == len(stringFileContent)-1 {
+		if idx == len(stringFileContent)-1 && ctr != 0 {
 			results[ctr-1] = string(buffer)
 		}
 
@@ -496,7 +497,7 @@ func (fs *fileService) verifyFile(ctx context.Context, fileContent []byte) (Sign
 	}
 
 	if ctr != 3 {
-		return SignatureMetadata{}, errors.New("signature invalid, it is incomplete")
+		return SignatureMetadata{}, errors.New("no signature detected")
 	}
 
 	pubKey, err := fs.guard.ParsePublicKey(results[2])
