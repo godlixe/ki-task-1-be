@@ -471,7 +471,6 @@ func (fs *fileService) verifyFile(ctx context.Context, fileContent []byte) (Sign
 
 	var buffer []byte
 	for idx < len(stringFileContent) {
-		fmt.Println(idx+len(tokens[ctr]), len(stringFileContent))
 		if ctr <= 2 &&
 			idx+len(tokens[ctr]) < len(stringFileContent) &&
 			stringFileContent[idx:idx+len(tokens[ctr])] == tokens[ctr] {
