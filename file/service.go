@@ -495,6 +495,10 @@ func (fs *fileService) verifyFile(ctx context.Context, fileContent []byte) (Sign
 		idx++
 	}
 
+	if ctr >= 3 {
+		return SignatureMetadata{}, errors.New("signature invalid, it is incomplete")
+	}
+
 	pubKey, err := fs.guard.ParsePublicKey(results[2])
 	if err != nil {
 		return SignatureMetadata{}, err
