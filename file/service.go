@@ -495,7 +495,7 @@ func (fs *fileService) verifyFile(ctx context.Context, fileContent []byte) (Sign
 		idx++
 	}
 
-	if ctr >= 3 {
+	if ctr != 3 {
 		return SignatureMetadata{}, errors.New("signature invalid, it is incomplete")
 	}
 
